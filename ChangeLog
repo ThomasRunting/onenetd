@@ -1,3 +1,8 @@
+2005-03-07  Adam Sampson  <azz@us-lot.org>
+
+	* onenetd.c: Catch a (harmless) out-of-memory crash while parsing
+	options (reported by Ulf Härnhammar).
+
 2005-01-27  Adam Sampson  <azz@us-lot.org>
 
 	* onenetd.c: Update the list of connected clients correctly;
