@@ -104,7 +104,8 @@ void usage(int code) {
 		"-D          set TCP_NODELAY option on sockets\n"
 		"-v          be verbose\n"
 		"-r resp     once -c limit is reached, refuse clients\n"
-		"            with 'resp' rather than deferring them\n"
+		"            with 'resp' rather than deferring them.\n"
+		"            resp may contain \\r, \\n, \\t.\n"
 		"-h          show this usage message\n");
 	exit(code);
 }
@@ -112,7 +113,7 @@ void usage(int code) {
 int main(int argc, char **argv) {
 	struct sigaction sa;
 	struct sockaddr_in listen_addr;
-	char *s;
+	char *s, *r;
 	int n;
 	
 	while (1) {
@@ -158,7 +159,23 @@ int main(int argc, char **argv) {
 			usage(0);
 			break;
 		case 'r':
-			response = strdup(optarg);
+			r = response = malloc(strlen(optarg) + 1);
+			for (s = optarg; *s != '\0'; s++) {
+				if (*s == '\\') {
+					s++;
+					if (*s == 'r')
+						*r++ = '\r';
+					else if (*s == 'n')
+						*r++ = '\n';
+					else if (*s == 't')
+						*r++ = '\t';
+					else
+						usage(20);
+				} else {
+					*r++ = *s;
+				}
+			}
+			*r = '\0';
 			break;
 		default:
 			usage(20);
