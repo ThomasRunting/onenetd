@@ -1,5 +1,6 @@
 onenetd
-Adam Sampson <azz@gnu.org>
+Adam Sampson <azz@us-lot.org>
 
-onenetd is a single-port inetd. Invoke it as "onenetd -h" for options.
+onenetd is a single-port inetd. Invoke it as "onenetd -h" for options,
+or see the included manual page.
 

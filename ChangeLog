@@ -2,7 +2,9 @@
 
 	* onenetd.c: Set fd options correctly (required for Solaris).
 	Fix copyright notices. Block SIGCHLD except while select() is running.
-	Various cleanups.
+	Use a self-pipe again, since the other way is not correct (it leaves
+	zombies if the handler gets called early enough). Use FD_CLOEXEC to
+	avoid leaking fds.  Various cleanups.
 
 	* configure.ac: Checked into CVS, and renamed this file for the new
 	standards.
