@@ -1,3 +1,10 @@
+2002-05-31  Adam Sampson  <azz@gnu.org>
+
+	* onenetd.c: Removed redundant test for host being "0" (since
+	inet_addr handles this case already). Changed uid and gid to
+	longs, since uid_t and gid_t aren't signed under dietlibc. Made
+	help a bit more helpful. Removed malloc debugging code.
+
 2002-05-29  Adam Sampson  <azz@gnu.org>
 
 	* onenetd.c: Due to missing features on Solaris: removed "kill IP

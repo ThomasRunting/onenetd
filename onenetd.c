@@ -38,8 +38,8 @@
 
 int max_conns = 40;
 int conn_count = 0;
-gid_t gid = -1;
-uid_t uid = -1;
+long gid = -1;
+long uid = -1;
 int backlog = 10;
 int no_delay = 0;
 int verbose = 0;
@@ -79,18 +79,23 @@ void usage(int code) {
 		"Copyright 2001, 2002 Adam Sampson <azz@gnu.org>\n"
 		"This is free software with ABSOLUTELY NO WARRANTY.\n\n"
 		"Usage: onenetd [options] address port command ...\n"
+		"  address  Address to bind to (specify 0 for any address)\n"
+		"  port     TCP port to bind to\n"
+		"  command  Command to execute\n"
 		"Options:\n"
-		"-c N        limit to at most N children running (default 40)\n"
-		"-g gid      setgid(gid) after binding\n"
-		"-u uid      setuid(uid) after binding\n"
-		"-U          setuid($UID) and setgid($GID) after binding\n"
-		"-b N        set listen() backlog to N\n"
-		"-D          set TCP_NODELAY option on sockets\n"
-		"-v          be verbose\n"
-		"-r resp     once -c limit is reached, refuse clients\n"
-		"            with 'resp' rather than deferring them.\n"
-		"            resp may contain \\r, \\n, \\t.\n"
-		"-h          show this usage message\n");
+		"  -c N     limit to at most N children running (default 40).\n"
+		"           Further connections will be deferred unless -r\n"
+		"           is specified.\n"
+		"  -g gid   setgid(gid) after binding\n"
+		"  -u uid   setuid(uid) after binding\n"
+		"  -U       setuid($UID) and setgid($GID) after binding\n"
+		"  -b N     set listen() backlog to N\n"
+		"  -D       set TCP_NODELAY option on sockets\n"
+		"  -v       be verbose\n"
+		"  -r resp  once -c limit is reached, refuse clients\n"
+		"           with 'resp' rather than deferring them.\n"
+		"           resp may contain \\r, \\n, \\t.\n"
+		"  -h       show this usage message\n");
 	exit(code);
 }
 
@@ -169,17 +174,13 @@ int main(int argc, char **argv) {
 	listen_addr.sin_family = AF_INET;
 
 	s = argv[optind++];
-	if (strcmp(s, "0") == 0) {
-		listen_addr.sin_addr.s_addr = INADDR_ANY;
-	} else {
-		listen_addr.sin_addr.s_addr = inet_addr(s);
-		if (listen_addr.sin_addr.s_addr == -1) {
-			struct hostent *he = gethostbyname(s);
-			if ((!he) || (he->h_addrtype != AF_INET)
-				|| (he->h_addr == 0))
-				die("unable to resolve listen host");
-			listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
-		}
+	listen_addr.sin_addr.s_addr = inet_addr(s);
+	if (listen_addr.sin_addr.s_addr == -1) {
+		struct hostent *he = gethostbyname(s);
+		if ((!he) || (he->h_addrtype != AF_INET)
+			|| (he->h_addr == 0))
+			die("unable to resolve listen host");
+		listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
 	}
 
 	s = argv[optind++];
@@ -307,7 +308,7 @@ int main(int argc, char **argv) {
 				if (fcntl(child_fd, F_SETFL, O_NONBLOCK) < 0)
 					die("unable to set O_NONBLOCK");
 
-				cl = malloc(1000000 * sizeof *cl);
+				cl = malloc(sizeof *cl);
 				if (!cl)
 					die("out of memory");
 
