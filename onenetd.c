@@ -1,8 +1,8 @@
 /*
    onenetd: a single-process inetd equivalent
-   Copyright 2001, 2002 Adam Sampson <azz@gnu.org>
+   Copyright 2001, 2002, 2003 Adam Sampson <azz@us-lot.org>
 
-   Please report bugs to azz@gnu.org.
+   Please report bugs to azz@us-lot.org.
 
    onenetd is free software; you can redistribute and/or modify it
    under the terms of that license as published by the Free Software
@@ -74,6 +74,21 @@ void handle_sigchld(int dummy) {
 	sigchld_received = 1;
 }
 
+/* Change the flags on an fd. */
+int change_flags(int fd, int add, int remove) {
+	int flags = fcntl(fd, F_GETFL);
+	if (flags < 0)
+		return -1;
+
+	flags |= add;
+	flags &= ~remove;
+
+	if (fcntl(fd, F_SETFL, flags) < 0)
+		return -1;
+	
+	return 0;
+}
+
 /* Add an fd to an FD_SET, updating a maximum. */
 void fd_set_add(int fd, fd_set *fds, int *max) {
 	FD_SET(fd, fds);
@@ -83,7 +98,7 @@ void fd_set_add(int fd, fd_set *fds, int *max) {
 /* Print the usage message. */
 void usage(int code) {
 	fprintf(stderr, "onenetd version " VERSION "\n"
-		"Copyright 2001, 2002 Adam Sampson <azz@gnu.org>\n"
+		"Copyright 2001, 2002, 2003 Adam Sampson <azz@us-lot.org>\n"
 		"This is free software with ABSOLUTELY NO WARRANTY.\n\n"
 		"Usage: onenetd [options] address port command ...\n"
 		"  address  Address to bind to (specify 0 for any address)\n"
@@ -240,7 +255,7 @@ int main(int argc, char **argv) {
 	listen_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (listen_fd < 0)
 		die("unable to create socket");
-	if (fcntl(listen_fd, F_SETFL, O_NONBLOCK) < 0)
+	if (change_flags(listen_fd, O_NONBLOCK, 0) < 0)
 		die("unable to set O_NONBLOCK");
 	n = 1;
 	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n) < 0)
@@ -330,7 +345,7 @@ int main(int argc, char **argv) {
 			}
 
 			if (full) {
-				if (fcntl(child_fd, F_SETFL, O_NONBLOCK) < 0) {
+				if (change_flags(child_fd, O_NONBLOCK, 0) < 0) {
 					warn("unable to set O_NONBLOCK");
 					goto no_conn;
 				}
@@ -364,6 +379,11 @@ int main(int argc, char **argv) {
 			if (no_delay && setsockopt(child_fd, IPPROTO_TCP,
 				TCP_NODELAY, &n, sizeof n) < 0) {
 				warn("unable to set TCP_NODELAY");
+				goto no_conn;
+			}
+
+			if (change_flags(child_fd, 0, O_NONBLOCK) < 0) {
+				warn("unable to clear O_NONBLOCK");
 				goto no_conn;
 			}
 
