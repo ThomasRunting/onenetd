@@ -1,0 +1,122 @@
+.TH onenetd 1 "6th August 2002" "Version 1.8" "Network Tools"
+.SH NAME
+onenetd \- listen on a TCP port and launch a program to handle requests
+.SH SYNOPSIS
+onenetd [options] ADDRESS PORT COMMAND ...
+.SH DESCRIPTION
+onenetd binds a TCP socket to port PORT on IP address ADDRESS, listens for and
+accepts connections, and spawns COMMAND with stdin and stdout (and optionally
+stderr) connected to the accepted socket.
+.PP
+onenetd may be thought of as a minimal version of inetd, suitable only for
+listening for "stream tcp nowait" services on a single port. The idea is that
+multiple copies of onenetd will be run, one for each service. The advantages of
+onenetd over inetd include:
+.IP \(bu
+Connections may be refused with a fixed response after the connection limit is
+reached.
+.IP \(bu
+TCP_NODELAY may be set on a per-port basis.
+.IP \(bu
+The address to bind to may be chosen arbitrarily, so it's easy to make a
+service only listen on localhost, or run several different services on the same
+port for different interface addresses.
+.IP \(bu
+Incoming connections may be logged to stderr.
+.PP
+Note that onenetd only handles TCP connections; it is not possible to run UDP
+services (such as nmbd) from onenetd.
+.SH OPTIONS
+.TP
+.B ADDRESS
+The hostname or IP address to bind() to. Specify 0 to bind to all addresses.
+.TP
+.B PORT
+The service name or port number to bind() to. In order to bind to a privileged
+port, onenetd must be initially run as root (although you can use the -u etc.
+options to switch to another user after the bind has been done).
+.TP
+.B COMMAND ...
+The command to execute, as well as its parameters (all parameters given to
+onenetd after COMMAND are passed to COMMAND as parameters). argv[0] for COMMAND
+will be set to COMMAND; if you wish to specify a different argv[0], use the
+argv0 tool from the freedt or daemontools packages.
+.TP
+.B \-c N
+Limit the number of connections (and thus child processes) to N. The default is
+40.
+.TP
+.B \-g GID
+After binding the TCP socket, setgid(GID). GID must be numeric.
+.TP
+.B \-u UID
+After binding the TCP socket, setuid(UID). UID must be numeric.
+.TP
+.B \-U
+After binding the TCP socket, setgid($GID) and setuid($UID). $GID and $UID must
+be numeric. This is intended for use with envuidgid (from daemontools or
+freedt).
+.TP
+.B \-b N
+Set the listen() backlog to N. Note that on many operating systems, the listen
+backlog has an arbitrary limit, or may be entirely ignored. The default is 10.
+.TP
+.B \-D
+Set the TCP_NODELAY option on the accepted sockets. This causes the operating
+system's TCP stack to avoid coalescing smaller packets into larger ones,
+decreasing latency but reducing throughput.
+.TP
+.B \-Q
+Do not print any messages to stderr, except in the case of a fatal error. This
+is the default.
+.TP
+.B \-v
+Print messages to stderr indicating clients connecting and disconnecting.
+These can be collected for logging purposes using logger, multilog from
+daemontools, or dumblog from freedt.
+.TP
+.B \-h
+Print a brief usage message, then exit. The same message will be shown if
+unknown or invalid arguments are passed.
+.TP
+.B \-r MESSAGE
+Normally once the number of active connections has passed the limit set by -c,
+further connections will not be accepted until the number of active connections
+has dropped again -- that is, further connections will not be refused, but will
+not connect until free connections are available. If -r is specified,
+connections will be accepted and have the constant string MESSAGE printed to
+them, then will be disconnected; this is done inside the onenetd process
+without forking, so it does not use up process slots. MESSAGE may contain \\r,
+\\n or \\t to specify a carriage return, newline or tab character.
+.SH EXIT CODE
+onenetd returns 0 on success, or 20 on failure (for instance, invalid
+arguments). Since onenetd is intended to run forever, the exit code is
+generally not important, and stderr should be examined for diagnostic messages
+if it exits unexpectedly.
+.SH EXAMPLES
+.TP
+onenetd 0 echo cat
+Simulate the standard inetd echo service.
+.TP
+onenetd -v 192.168.1.2 daytime date
+Simulate the standard inetd daytime service on the interface 192.168.1.2,
+logging connections to stderr.
+.TP
+onenetd -v -c 5 -r '421 Server full\\r\\n' 0 21 /usr/sbin/ftpd -a /home/ftp
+Run an FTP service with a limit of five concurrent connections, refusing any
+further connections with an appropriate FTP error message. ftpd will be invoked
+as "/usr/sbin/ftpd -a /home/ftp".
+.TP
+envuidgid myuser onenetd -v -U 0 25098 myprog --my-arguments
+Set user and group to that of myuser, and run "myprog --my-arguments" for
+connections to port 25098 on any interface.
+.SH AUTHOR
+onenetd was written by Adam Sampson <azz@gnu.org>
+.SH SEE ALSO
+.BR inetd (8),
+.BR argv0 (8),
+.BR envuidgid (8),
+.BR softlimit (8),
+.BR dumblog (8),
+.BR logger (1),
+.BR sock (1).

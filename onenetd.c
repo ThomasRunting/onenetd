@@ -43,6 +43,7 @@ long uid = -1;
 int backlog = 10;
 int no_delay = 0;
 int verbose = 0;
+int stderr_to_socket = 0;
 char *response = NULL;
 char **command;
 int listen_fd;
@@ -91,6 +92,7 @@ void usage(int code) {
 		"  -U       setuid($UID) and setgid($GID) after binding\n"
 		"  -b N     set listen() backlog to N\n"
 		"  -D       set TCP_NODELAY option on sockets\n"
+		"  -e       redirect stderr of children to socket\n"
 		"  -v       be verbose\n"
 		"  -r resp  once -c limit is reached, refuse clients\n"
 		"           with 'resp' rather than deferring them.\n"
@@ -136,7 +138,7 @@ int main(int argc, char **argv) {
 	int n;
 	
 	while (1) {
-		char c = getopt(argc, argv, "+c:g:u:Ub:oOdDQvhr:");
+		char c = getopt(argc, argv, "+c:g:u:Ub:ODQvehr:");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -170,6 +172,9 @@ int main(int argc, char **argv) {
 			break;
 		case 'v':
 			verbose = 1;
+			break;
+		case 'e':
+			stderr_to_socket = 1;
 			break;
 		case 'h':
 			usage(0);
@@ -359,6 +364,8 @@ int main(int argc, char **argv) {
 				close(listen_fd);
 				dup2(child_fd, 0);
 				dup2(child_fd, 1);
+				if (stderr_to_socket)
+					dup2(child_fd, 2);
 
 				putenv(strdup("PROTO=TCP"));
 				snprintf(buf, SIZE, "TCPLOCALIP=%s",
