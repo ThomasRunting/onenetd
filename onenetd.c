@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include "config.h"
 
 int max_conns = 40;
 int conn_count = 0;
