@@ -77,14 +77,16 @@ void handle_sigchld(int dummy) {
 /* Change the flags on an fd. */
 int change_flags(int fd, int add, int remove) {
 	int flags = fcntl(fd, F_GETFL);
-	if (flags < 0)
+	int newflags;
+	if (flags == -1)
 		return -1;
 
-	flags |= add;
-	flags &= ~remove;
+	newflags = (flags | add) & ~remove;
 
-	if (fcntl(fd, F_SETFL, flags) < 0)
-		return -1;
+	if (newflags != flags) {
+		if (fcntl(fd, F_SETFL, flags) < 0)
+			return -1;
+	}
 	
 	return 0;
 }
