@@ -10,6 +10,9 @@
 	* onenetd.c: Catch a (harmless) out-of-memory crash while parsing
 	options (reported by Ulf Härnhammar).
 
+	* onenetd.1: Document the environment variables (reported by Tim
+	Bishop).
+
 2005-01-27  Adam Sampson  <azz@us-lot.org>
 
 	* onenetd.c: Update the list of connected clients correctly;
