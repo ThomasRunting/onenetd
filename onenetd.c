@@ -41,7 +41,6 @@ int conn_count = 0;
 gid_t gid = -1;
 uid_t uid = -1;
 int backlog = 10;
-int kill_options = 1;
 int no_delay = 0;
 int verbose = 0;
 char *response = NULL;
@@ -100,7 +99,6 @@ void usage(int code) {
 		"-u uid      setuid(uid) after binding\n"
 		"-U          setuid($UID) and setgid($GID) after binding\n"
 		"-b N        set listen() backlog to N\n"
-		"-O          kill TCP options\n"
 		"-D          set TCP_NODELAY option on sockets\n"
 		"-v          be verbose\n"
 		"-r resp     once -c limit is reached, refuse clients\n"
@@ -142,9 +140,6 @@ int main(int argc, char **argv) {
 			break;
 		case 'b':
 			backlog = atoi(optarg);
-			break;
-		case 'O':
-			kill_options = 1;
 			break;
 		case 'D':
 			no_delay = 1;
@@ -336,11 +331,6 @@ int main(int argc, char **argv) {
 			if (no_delay && setsockopt(child_fd, IPPROTO_TCP,
 				TCP_NODELAY, &n, sizeof n) < 0)
 				die("unable to set TCP_NODELAY");
-
-			n = 0;
-			if (kill_options && setsockopt(child_fd, SOL_IP,
-				IP_OPTIONS, &n, sizeof n) < 0)
-				die("unable to kill IP options");
 
 			conn_count++;
 			pid = fork();
