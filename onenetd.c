@@ -393,11 +393,6 @@ int main(int argc, char **argv) {
 				goto no_conn;
 			}
 
-			if (change_flags(child_fd, 0, O_NONBLOCK) < 0) {
-				warn("unable to clear O_NONBLOCK");
-				goto no_conn;
-			}
-
 			pid = fork();
 			if (pid < 0) {
 				warn("fork failed");

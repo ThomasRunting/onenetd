@@ -1,8 +1,8 @@
 2003-06-17  Adam Sampson  <azz@us-lot.org>
 
-	* onenetd.c: Clear O_NONBLOCK after accept(), since Solaris inherits
-	it. Fix copyright notices. Block SIGCHLD except while select() is
-	running. Various cleanups.
+	* onenetd.c: Set fd options correctly (required for Solaris).
+	Fix copyright notices. Block SIGCHLD except while select() is running.
+	Various cleanups.
 
 2002-12-29  Adam Sampson  <azz@gnu.org>
 
