@@ -390,6 +390,7 @@ int main(int argc, char **argv) {
 				}
 
 				cl->fd = child_fd;
+				child_fd = -1;
 				cl->message = response;
 				cl->left = strlen(cl->message);
 				cl->next = clients;
