@@ -4,6 +4,9 @@
 	Fix copyright notices. Block SIGCHLD except while select() is running.
 	Various cleanups.
 
+	* configure.ac: Checked into CVS, and renamed this file for the new
+	standards.
+
 2002-12-29  Adam Sampson  <azz@gnu.org>
 
 	* onenetd.c: Made all the errors that can occur in the main loop
