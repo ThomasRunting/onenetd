@@ -134,7 +134,7 @@ void try_to_send(client *prev_cl, client *cl) {
 
 		if (cl->left == 0)
 			remove = 1;
-	} else if (errno == EINTR || errno == EAGAIN) {
+	} else if (errno == EAGAIN) {
 		/* ignorable error */
 	} else {
 		/* another error while writing */
@@ -154,6 +154,7 @@ void try_to_send(client *prev_cl, client *cl) {
 
 int main(int argc, char **argv) {
 	struct sigaction sa;
+	sigset_t sig_chld;
 	struct sockaddr_in listen_addr;
 	char *s, *r;
 	int n;
@@ -273,6 +274,11 @@ int main(int argc, char **argv) {
 		if (setuid(uid) < 0)
 			die("unable to setuid");
 
+	sigemptyset(&sig_chld);
+	sigaddset(&sig_chld, SIGCHLD);
+	if (sigprocmask(SIG_BLOCK, &sig_chld, NULL) < 0)
+		die("unable to block SIGCHLD");
+
 	sa.sa_handler = handle_sigchld;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_NOCLDSTOP;
@@ -284,6 +290,7 @@ int main(int argc, char **argv) {
 		fd_set read_fds, write_fds;
 
 		do {
+			sigset_t old_sigs;
 			int max = -1;
 
 			if (sigchld_received) {
@@ -294,7 +301,7 @@ int main(int argc, char **argv) {
 						if (verbose)
 							fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
 					}
-				} while (n > 0 || (n < 0 && errno == EINTR));
+				} while (n > 0);
 				sigchld_received = 0;
 			}
 
@@ -307,13 +314,15 @@ int main(int argc, char **argv) {
 			for (cl = clients; cl; cl = cl->next)
 				fd_set_add(cl->fd, &write_fds, &max);
 
-			/* Note: this code absolutely relies on select()
-			   failing with EINTR when a SIGCHLD is received,
-			   and on select behaving as wait() when called with
-			   empty sets and no timeout. */
+			if (sigprocmask(SIG_UNBLOCK, &sig_chld, &old_sigs) < 0)
+				die("unable to unblock SIGCHLD");
+
 			n = select(max + 1, &read_fds, &write_fds, NULL, NULL);
 			if (n < 0 && errno != EINTR)
 				warn("select failed");
+
+			if (sigprocmask(SIG_SETMASK, &old_sigs, NULL) < 0)
+				die("unable to restore signal mask");
 		} while (n < 0);
 
 		prev_cl = NULL;
@@ -337,7 +346,7 @@ int main(int argc, char **argv) {
 			child_fd = accept(listen_fd,
 				(struct sockaddr *)&child_addr, &len);
 			
-			if (child_fd < 0 && (errno == EAGAIN || errno == EINTR))
+			if (child_fd < 0 && errno == EAGAIN)
 				goto no_conn;
 			if (child_fd < 0) {
 				warn("accept failed");
