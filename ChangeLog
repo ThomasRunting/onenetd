@@ -4,7 +4,8 @@
 	previously clients weren't being added to the list at all, so
 	memory would be leaked if the refusal message wasn't accepted
 	immediately, and the child FD would be closed immediately
-	anyway.
+	anyway. Avoid overfilling fd_sets by dropping client connections
+	if they wouldn't fit.
 
 2003-06-17  Adam Sampson  <azz@us-lot.org>
 
