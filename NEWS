@@ -1,3 +1,9 @@
+(This only includes features; for bugfixes, see ChangeLog.)
+
+1.6: Always try to send response first; include child counts in status
+     messages.
+1.5: Remove test for host being "0"; made help better.
+1.4: Fix linking under Solaris.
 1.3: Removed -K.
 1.2: Added escape characters in response.
 1.1: Initial release.

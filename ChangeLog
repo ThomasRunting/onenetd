@@ -1,3 +1,11 @@
+2002-06-03  Adam Sampson  <azz@gnu.org>
+
+	* onenetd.c: Avoid selecting on the listening socket when
+	full. Split out the "send response" code, so that we can call it
+	when we first notice a socket needs a response (which saves on the
+	calls to select()). Made the status messages include the number of
+	children running.
+
 2002-05-31  Adam Sampson  <azz@gnu.org>
 
 	* onenetd.c: Removed redundant test for host being "0" (since

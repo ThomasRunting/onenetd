@@ -99,6 +99,36 @@ void usage(int code) {
 	exit(code);
 }
 
+/* Try to send a chunk of the response to a client. Remove the client
+   from the list if we've sent all of it. */
+void try_to_send(client *prev_cl, client *cl) {
+	int remove = 0;
+	int count = write(cl->fd, cl->message, cl->left);
+
+	if (count >= 0) {
+		cl->message += count;
+		cl->left -= count;
+
+		if (cl->left == 0)
+			remove = 1;
+	} else if (errno == EINTR || errno == EAGAIN) {
+		/* ignorable error */
+	} else {
+		/* another error while writing */
+		remove = 1;
+	}
+
+	if (remove) {
+		close(cl->fd);
+		if (prev_cl) {
+			prev_cl->next = cl->next;
+		} else {
+			clients = cl->next;
+		}
+		free(cl);
+	}
+}
+
 int main(int argc, char **argv) {
 	struct sigaction sa;
 	struct sockaddr_in listen_addr;
@@ -229,7 +259,8 @@ int main(int argc, char **argv) {
 		client *cl, *prev_cl, *next_cl;
 
 		FD_ZERO(&read_fds);
-		fd_set_add(listen_fd, &read_fds, &max);
+		if (!(full && !response))
+			fd_set_add(listen_fd, &read_fds, &max);
 
 		FD_ZERO(&write_fds);
 		for (cl = clients; cl; cl = cl->next)
@@ -241,12 +272,17 @@ int main(int argc, char **argv) {
 					n = waitpid(-1, NULL, WNOHANG);
 					if (n > 0) {
 						if (verbose)
-							fprintf(stderr, "%d closed\n", n);
+							fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
 						conn_count--;
 					}
 				} while (n > 0 || (n < 0 && errno == EINTR));
 				sigchld_received = 0;
 			}
+
+			/* Note: this code absolutely relies on select()
+			   failing with EINTR when a SIGCHLD is received,
+			   and on select behaving as wait() when called with
+			   empty sets and no timeout. */
 			n = select(max + 1, &read_fds, &write_fds, NULL, NULL);
 			if (n < 0 && errno != EINTR)
 				die("select failed");
@@ -256,34 +292,8 @@ int main(int argc, char **argv) {
 		for (cl = clients; cl; cl = next_cl) {
 			next_cl = cl->next;
 
-			if (FD_ISSET(cl->fd, &write_fds)) {
-				int remove = 0;
-				int count = write(cl->fd, cl->message,
-					cl->left);
-
-				if (count >= 0) {
-					cl->message += count;
-					cl->left -= count;
-
-					if (cl->left == 0)
-						remove = 1;
-				} else if (errno == EINTR || errno == EAGAIN) {
-					/* ignorable error */
-				} else {
-					/* another error while writing */
-					remove = 1;
-				}
-
-				if (remove) {
-					close(cl->fd);
-					if (prev_cl) {
-						prev_cl->next = cl->next;
-					} else {
-						clients = cl->next;
-					}
-					free(cl);
-				}
-			}
+			if (FD_ISSET(cl->fd, &write_fds))
+				try_to_send(prev_cl, cl);
 			prev_cl = cl;
 		}
 
@@ -316,13 +326,17 @@ int main(int argc, char **argv) {
 				cl->message = response;
 				cl->left = strlen(cl->message);
 				cl->next = clients;
-				clients = cl;
 
 				if (verbose)
 					fprintf(stderr, "- refused from %s "
 						"port %d\n",
 						inet_ntoa(child_addr.sin_addr),
 						ntohs(child_addr.sin_port));
+	
+				/* Try to send the response now; if we send
+				   all of it it'll get removed from the list
+				   again. */
+				try_to_send(NULL, cl);
 
 				goto no_conn;
 			}
@@ -365,9 +379,10 @@ int main(int argc, char **argv) {
 			close(child_fd);
 			if (verbose)
 				fprintf(stderr, "%d connected from %s "
-					"port %d\n", pid,
+					"port %d (%d/%d)\n", pid,
 					inet_ntoa(child_addr.sin_addr),
-					ntohs(child_addr.sin_port));
+					ntohs(child_addr.sin_port),
+					conn_count, max_conns);
 
 			no_conn: ;
 		}	
