@@ -253,31 +253,33 @@ int main(int argc, char **argv) {
 	sigaction(SIGCHLD, &sa, NULL);
 
 	while (1) {
-		int max = -1;
-		fd_set read_fds, write_fds;
-		int full = conn_count >= max_conns;
+		int full;
 		client *cl, *prev_cl, *next_cl;
-
-		FD_ZERO(&read_fds);
-		if (!(full && !response))
-			fd_set_add(listen_fd, &read_fds, &max);
-
-		FD_ZERO(&write_fds);
-		for (cl = clients; cl; cl = cl->next)
-			fd_set_add(cl->fd, &write_fds, &max);
+		fd_set read_fds, write_fds;
 
 		do {
+			int max = -1;
+
 			if (sigchld_received) {
 				do {
 					n = waitpid(-1, NULL, WNOHANG);
 					if (n > 0) {
+						conn_count--;
 						if (verbose)
 							fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
-						conn_count--;
 					}
 				} while (n > 0 || (n < 0 && errno == EINTR));
 				sigchld_received = 0;
 			}
+
+			full = conn_count >= max_conns;
+			FD_ZERO(&read_fds);
+			if (!(full && !response))
+				fd_set_add(listen_fd, &read_fds, &max);
+
+			FD_ZERO(&write_fds);
+			for (cl = clients; cl; cl = cl->next)
+				fd_set_add(cl->fd, &write_fds, &max);
 
 			/* Note: this code absolutely relies on select()
 			   failing with EINTR when a SIGCHLD is received,

@@ -1,3 +1,11 @@
+2002-08-05  Adam Sampson  <azz@gnu.org>
+
+	* onenetd.c: Fixed bug where onenetd wouldn't accept any connections
+	after it had ever been full (calculating "full" in the wrong place).
+	Made the disconnect message show the connection count after
+	disconnection (since it's a bit more obvious then how much clients are
+	actually connected from the log).
+
 2002-06-03  Adam Sampson  <azz@gnu.org>
 
 	* onenetd.c: Avoid selecting on the listening socket when

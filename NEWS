@@ -1,5 +1,6 @@
 (This only includes features; for bugfixes, see ChangeLog.)
 
+1.7: Fix behaviour after server has been full.
 1.6: Always try to send response first; include child counts in status
      messages.
 1.5: Remove test for host being "0"; made help better.
