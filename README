@@ -1,0 +1,5 @@
+onenetd
+Adam Sampson <azz@gnu.org>
+
+onenetd is a single-port inetd. Invoke it as "onenetd -h" for options.
+
