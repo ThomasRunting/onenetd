@@ -1,0 +1,11 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(onenetd.c)
+AM_INIT_AUTOMAKE(onenetd, 1.9)
+
+dnl Checks for programs.
+AC_PROG_CC
+
+AC_CHECK_LIB(socket, socket,,, -lnsl)
+AC_CHECK_LIB(nsl, gethostbyname,,, -lsocket)
+
+AC_OUTPUT(Makefile)

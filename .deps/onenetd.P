@@ -1,0 +1,41 @@
+onenetd.o: onenetd.c /pkg/dietlibc/include/dietref.h \
+  /pkg/dietlibc/include/endian.h /pkg/dietlibc/include/unistd.h \
+  /pkg/dietlibc/include/sys/cdefs.h /pkg/dietlibc/include/sys/types.h \
+  /pkg/dietlibc/include/inttypes.h /pkg/dietlibc/include/stddef.h \
+  /pkg/dietlibc/include/sys/time.h /pkg/dietlibc/include/sys/select.h \
+  /pkg/dietlibc/include/sys/stat.h /pkg/dietlibc/include/sys/fsuid.h \
+  /pkg/dietlibc/include/stdlib.h /pkg/dietlibc/include/string.h \
+  /pkg/dietlibc/include/netdb.h /pkg/dietlibc/include/sys/socket.h \
+  /pkg/dietlibc/include/netinet/in.h /pkg/dietlibc/include/netinet/tcp.h \
+  /pkg/dietlibc/include/arpa/inet.h /pkg/dietlibc/include/signal.h \
+  /pkg/dietlibc/include/errno.h /pkg/dietlibc/include/fcntl.h \
+  /pkg/dietlibc/include/sys/wait.h /pkg/dietlibc/include/sys/resource.h \
+  /pkg/dietlibc/include/time.h /pkg/dietlibc/include/stdio.h \
+  /pkg/dietlibc/include/stdarg.h
+onenetd.c :
+/pkg/dietlibc/include/dietref.h :
+/pkg/dietlibc/include/endian.h :
+/pkg/dietlibc/include/unistd.h :
+/pkg/dietlibc/include/sys/cdefs.h :
+/pkg/dietlibc/include/sys/types.h :
+/pkg/dietlibc/include/inttypes.h :
+/pkg/dietlibc/include/stddef.h :
+/pkg/dietlibc/include/sys/time.h :
+/pkg/dietlibc/include/sys/select.h :
+/pkg/dietlibc/include/sys/stat.h :
+/pkg/dietlibc/include/sys/fsuid.h :
+/pkg/dietlibc/include/stdlib.h :
+/pkg/dietlibc/include/string.h :
+/pkg/dietlibc/include/netdb.h :
+/pkg/dietlibc/include/sys/socket.h :
+/pkg/dietlibc/include/netinet/in.h :
+/pkg/dietlibc/include/netinet/tcp.h :
+/pkg/dietlibc/include/arpa/inet.h :
+/pkg/dietlibc/include/signal.h :
+/pkg/dietlibc/include/errno.h :
+/pkg/dietlibc/include/fcntl.h :
+/pkg/dietlibc/include/sys/wait.h :
+/pkg/dietlibc/include/sys/resource.h :
+/pkg/dietlibc/include/time.h :
+/pkg/dietlibc/include/stdio.h :
+/pkg/dietlibc/include/stdarg.h :
