@@ -1,5 +1,8 @@
 2005-03-07  Adam Sampson  <azz@us-lot.org>
 
+	* COPYING, onenetd.c: Change the license from the GPL to the MIT
+	license.
+	
 	* onenetd.c: Use getsockname() to get the local address to put in
 	TCPLOCALIP, rather than just using the listen address; this means
 	that TCPLOCALIP will be set to the address of the interface the
@@ -8,7 +11,8 @@
 	* onenetd.c: Check that accept() returned a valid address.
 	
 	* onenetd.c: Catch a (harmless) out-of-memory crash while parsing
-	options (reported by Ulf Härnhammar).
+	options (reported by Ulf Härnhammar, who also did a security
+	review of the code -- thanks!).
 
 	* onenetd.1: Document the environment variables (reported by Tim
 	Bishop).
