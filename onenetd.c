@@ -1,8 +1,8 @@
 /*
    onenetd: a single-process inetd equivalent
-   Copyright 2001, 2002, 2003 Adam Sampson <azz@us-lot.org>
+   Copyright 2001, 2002, 2003, 2005 Adam Sampson <ats@offog.org>
 
-   Please report bugs to azz@us-lot.org.
+   Please report bugs to ats@offog.org.
 
    onenetd is free software; you can redistribute and/or modify it
    under the terms of that license as published by the Free Software
@@ -108,7 +108,7 @@ void fd_set_add(int fd, fd_set *fds, int *max) {
 /* Print the usage message. */
 void usage(int code) {
 	fprintf(stderr, "onenetd version " VERSION "\n"
-		"Copyright 2001, 2002, 2003 Adam Sampson <azz@us-lot.org>\n"
+		"Copyright 2001, 2002, 2003, 2005 Adam Sampson <ats@offog.org>\n"
 		"This is free software with ABSOLUTELY NO WARRANTY.\n\n"
 		"Usage: onenetd [options] address port command ...\n"
 		"  address  Address to bind to (specify 0 for any address)\n"
@@ -393,6 +393,7 @@ int main(int argc, char **argv) {
 				cl->message = response;
 				cl->left = strlen(cl->message);
 				cl->next = clients;
+				clients = cl;
 
 				if (verbose)
 					fprintf(stderr, "- refused from %s "

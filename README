@@ -1,5 +1,5 @@
 onenetd
-Adam Sampson <azz@us-lot.org>
+Adam Sampson <ats@offog.org>
 
 onenetd is a single-port inetd. Invoke it as "onenetd -h" for options,
 or see the included manual page.

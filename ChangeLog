@@ -1,3 +1,8 @@
+2005-01-27  Adam Sampson  <azz@us-lot.org>
+
+	* onenetd.c: Update the list of connected clients correctly;
+	previously clients weren't being added to the list at all.
+
 2003-06-17  Adam Sampson  <azz@us-lot.org>
 
 	* onenetd.c: Set fd options correctly (required for Solaris).
