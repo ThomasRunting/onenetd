@@ -47,8 +47,8 @@ int verbose = 0;
 int stderr_to_socket = 0;
 char *response = NULL;
 char **command;
+int selfpipe[2];
 int listen_fd;
-int sigchld_received = 0;
 
 typedef struct client {
 	int fd;
@@ -71,7 +71,9 @@ void die(const char *msg) {
 
 /* Handle SIGCHLD. */
 void handle_sigchld(int dummy) {
-	sigchld_received = 1;
+	int old_errno = errno;
+	write(selfpipe[1], "c", 1);
+	errno = old_errno;
 }
 
 /* Change the flags on an fd. */
@@ -89,6 +91,12 @@ int change_flags(int fd, int add, int remove) {
 	}
 	
 	return 0;
+}
+
+/* Set the FD_CLOEXEC flag on an fd. */
+void set_fd_cloexec(int fd) {
+	if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0)
+		die("unable to set FD_CLOEXEC");
 }
 
 /* Add an fd to an FD_SET, updating a maximum. */
@@ -255,11 +263,19 @@ int main(int argc, char **argv) {
 	listen_addr.sin_port = n;
 	command = &argv[optind];
 
+	if (pipe(selfpipe) < 0)
+		die("unable to create self-pipe");
+	if (change_flags(selfpipe[1], O_NONBLOCK, 0) < 0)
+		die("unable to set O_NONBLOCK");
+	set_fd_cloexec(selfpipe[0]);
+	set_fd_cloexec(selfpipe[1]);
+
 	listen_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (listen_fd < 0)
 		die("unable to create socket");
 	if (change_flags(listen_fd, O_NONBLOCK, 0) < 0)
 		die("unable to set O_NONBLOCK");
+	set_fd_cloexec(listen_fd);
 	n = 1;
 	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n) < 0)
 		die("unable to set SO_REUSEADDR");
@@ -295,20 +311,9 @@ int main(int argc, char **argv) {
 			sigset_t old_sigs;
 			int max = -1;
 
-			if (sigchld_received) {
-				do {
-					n = waitpid(-1, NULL, WNOHANG);
-					if (n > 0) {
-						conn_count--;
-						if (verbose)
-							fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
-					}
-				} while (n > 0);
-				sigchld_received = 0;
-			}
-
 			full = conn_count >= max_conns;
 			FD_ZERO(&read_fds);
+			fd_set_add(selfpipe[0], &read_fds, &max);
 			if (!(full && !response))
 				fd_set_add(listen_fd, &read_fds, &max);
 
@@ -336,6 +341,22 @@ int main(int argc, char **argv) {
 			prev_cl = cl;
 		}
 
+		if (FD_ISSET(selfpipe[0], &read_fds)) {
+			char c;
+
+			/* We don't care if this fails. */
+			read(selfpipe[0], &c, 1);
+
+			while (1) {
+				n = waitpid(-1, NULL, WNOHANG);
+				if (n <= 0) break;
+
+				conn_count--;
+				if (verbose)
+					fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
+			}
+		}
+
 		if (FD_ISSET(listen_fd, &read_fds)) {
 			int pid;
 			struct sockaddr_in child_addr;
@@ -354,6 +375,7 @@ int main(int argc, char **argv) {
 				warn("accept failed");
 				goto no_conn;
 			}
+			set_fd_cloexec(child_fd);
 
 			if (full) {
 				if (change_flags(child_fd, O_NONBLOCK, 0) < 0) {
@@ -402,7 +424,6 @@ int main(int argc, char **argv) {
 			if (pid == 0) {
 				char buf[80];
 
-				close(listen_fd);
 				dup2(child_fd, 0);
 				dup2(child_fd, 1);
 				if (stderr_to_socket)
