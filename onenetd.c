@@ -394,8 +394,8 @@ int main(int argc, char **argv) {
 			}
 
 			if (pid == 0) {
-#define SIZE 80
-				char buf[SIZE];
+				char buf[80];
+
 				close(listen_fd);
 				dup2(child_fd, 0);
 				dup2(child_fd, 1);
@@ -403,16 +403,16 @@ int main(int argc, char **argv) {
 					dup2(child_fd, 2);
 
 				putenv(strdup("PROTO=TCP"));
-				snprintf(buf, SIZE, "TCPLOCALIP=%s",
+				snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
 					inet_ntoa(listen_addr.sin_addr));
 				putenv(strdup(buf));
-				snprintf(buf, SIZE, "TCPLOCALPORT=%d",
+				snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
 					ntohs(listen_addr.sin_port));
 				putenv(strdup(buf));
-				snprintf(buf, SIZE, "TCPREMOTEIP=%s",
+				snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
 					inet_ntoa(child_addr.sin_addr));
 				putenv(strdup(buf));
-				snprintf(buf, SIZE, "TCPREMOTEPORT=%d",
+				snprintf(buf, sizeof buf, "TCPREMOTEPORT=%d",
 					ntohs(child_addr.sin_port));
 				putenv(strdup(buf));
 
