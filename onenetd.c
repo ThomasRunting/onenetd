@@ -46,7 +46,7 @@ int verbose = 0;
 char *response = NULL;
 char **command;
 int listen_fd;
-int child_pipe[2];
+int sigchld_received = 0;
 
 typedef struct client {
 	int fd;
@@ -62,29 +62,15 @@ void die(const char *msg) {
 	exit(20);
 }
 
-/* Handle SIGCHLD by writing a message down the pipe that the main loop
-   reads from. */
+/* Handle SIGCHLD. */
 void handle_sigchld(int dummy) {
-	int n;
-	do {
-		n = write(child_pipe[1], "c", 1);
-	} while (n < 0 && errno == EINTR);
-	if (n < 1)
-		die("unable to write to pipe");
+	sigchld_received = 1;
 }
 
 /* Add an fd to an FD_SET, updating a maximum. */
 void fd_set_add(int fd, fd_set *fds, int *max) {
 	FD_SET(fd, fds);
 	if (fd > *max) *max = fd;
-}
-
-/* Format a port in network byte order to a static buffer. */
-const char *port_str(int port) {
-#define SIZE 30
-	static char buf[SIZE];
-	snprintf(buf, SIZE, "%d", ntohs(port));
-	return buf;
 }
 
 /* Print the usage message. */
@@ -180,21 +166,20 @@ int main(int argc, char **argv) {
 	if ((argc - optind) < 3)
 		usage(20);
 
-	if (pipe(child_pipe) < 0)
-		die("unable to create pipe");
-
 	listen_addr.sin_family = AF_INET;
 
 	s = argv[optind++];
 	if (strcmp(s, "0") == 0) {
 		listen_addr.sin_addr.s_addr = INADDR_ANY;
-	} else if (inet_aton(s, &listen_addr.sin_addr) != 0) {
-		/* nothing */
 	} else {
-		struct hostent *he = gethostbyname(s);
-		if ((!he) || (he->h_addrtype != AF_INET) || (he->h_addr == 0))
-			die("unable to resolve listen host");
-		listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
+		listen_addr.sin_addr.s_addr = inet_addr(s);
+		if (listen_addr.sin_addr.s_addr == -1) {
+			struct hostent *he = gethostbyname(s);
+			if ((!he) || (he->h_addrtype != AF_INET)
+				|| (he->h_addr == 0))
+				die("unable to resolve listen host");
+			listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
+		}
 	}
 
 	s = argv[optind++];
@@ -243,15 +228,24 @@ int main(int argc, char **argv) {
 		client *cl, *prev_cl, *next_cl;
 
 		FD_ZERO(&read_fds);
-		fd_set_add(child_pipe[0], &read_fds, &max);
-		if (response || !full)
-			fd_set_add(listen_fd, &read_fds, &max);
+		fd_set_add(listen_fd, &read_fds, &max);
 
 		FD_ZERO(&write_fds);
 		for (cl = clients; cl; cl = cl->next)
 			fd_set_add(cl->fd, &write_fds, &max);
 
 		do {
+			if (sigchld_received) {
+				do {
+					n = waitpid(-1, NULL, WNOHANG);
+					if (n > 0) {
+						if (verbose)
+							fprintf(stderr, "%d closed\n", n);
+						conn_count--;
+					}
+				} while (n > 0 || (n < 0 && errno == EINTR));
+				sigchld_received = 0;
+			}
 			n = select(max + 1, &read_fds, &write_fds, NULL, NULL);
 			if (n < 0 && errno != EINTR)
 				die("select failed");
@@ -296,7 +290,12 @@ int main(int argc, char **argv) {
 			int pid;
 			struct sockaddr_in child_addr;
 			int len = sizeof child_addr;
-			int child_fd = accept(listen_fd,
+			int child_fd;
+
+			if (full && !response)
+				goto no_conn;
+
+			child_fd = accept(listen_fd,
 				(struct sockaddr *)&child_addr, &len);
 			
 			if (child_fd < 0 && (errno == EAGAIN || errno == EINTR))
@@ -338,21 +337,25 @@ int main(int argc, char **argv) {
 				die("fork failed");
 
 			if (pid == 0) {
+#define SIZE 80
+				char buf[SIZE];
 				close(listen_fd);
-				close(child_pipe[0]);	
-				close(child_pipe[1]);
 				dup2(child_fd, 0);
 				dup2(child_fd, 1);
 
-				setenv("PROTO", "TCP", 1);
-				setenv("TCPLOCALIP",
-					inet_ntoa(listen_addr.sin_addr), 1);
-				setenv("TCPLOCALPORT",
-					port_str(listen_addr.sin_port), 1);
-				setenv("TCPREMOTEIP",
-					inet_ntoa(child_addr.sin_addr), 1);
-				setenv("TCPREMOTEPORT",
-					port_str(child_addr.sin_port), 1);
+				putenv(strdup("PROTO=TCP"));
+				snprintf(buf, SIZE, "TCPLOCALIP=%s",
+					inet_ntoa(listen_addr.sin_addr));
+				putenv(strdup(buf));
+				snprintf(buf, SIZE, "TCPLOCALPORT=%d",
+					ntohs(listen_addr.sin_port));
+				putenv(strdup(buf));
+				snprintf(buf, SIZE, "TCPREMOTEIP=%s",
+					inet_ntoa(child_addr.sin_addr));
+				putenv(strdup(buf));
+				snprintf(buf, SIZE, "TCPREMOTEPORT=%d",
+					ntohs(child_addr.sin_port));
+				putenv(strdup(buf));
 
 				execvp(command[0], command);
 				_exit(20);
@@ -367,21 +370,6 @@ int main(int argc, char **argv) {
 
 			no_conn: ;
 		}	
-
-		if (FD_ISSET(child_pipe[0], &read_fds)) {
-			char c;
-			do {
-				n = read(child_pipe[0], &c, 1);
-			} while (n < 0 && errno == EINTR);
-			if (n < 1)
-				die("unable to read from pipe");
-			n = waitpid(-1, NULL, WNOHANG);
-			if (n > 0) {
-				if (verbose)
-					fprintf(stderr, "%d closed\n", n);
-				conn_count--;
-			}
-		}
 	}
 
 	return 0;
