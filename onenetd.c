@@ -213,6 +213,8 @@ int main(int argc, char **argv) {
 			break;
 		case 'r':
 			r = response = malloc(strlen(optarg) + 1);
+			if (!r)
+				die("out of memory");
 			for (s = optarg; *s != '\0'; s++) {
 				if (*s == '\\') {
 					s++;
