@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
 
 		if (FD_ISSET(listen_fd, &read_fds)) {
 			int pid;
-			struct sockaddr_in child_addr;
+			struct sockaddr_in local_addr, child_addr;
 			int len = sizeof child_addr;
 			int child_fd;
 
@@ -371,6 +371,10 @@ int main(int argc, char **argv) {
 			child_fd = accept(listen_fd,
 				(struct sockaddr *)&child_addr, &len);
 			
+			if (len != sizeof child_addr) {
+				warn("unable to get remote address");
+				goto no_conn;
+			}
 			if (child_fd < 0 && errno == EAGAIN)
 				goto no_conn;
 			if (child_fd < 0) {
@@ -378,6 +382,14 @@ int main(int argc, char **argv) {
 				goto no_conn;
 			}
 			set_fd_cloexec(child_fd);
+
+			len = sizeof local_addr;
+			if (getsockname(child_fd,
+				(struct sockaddr *)&local_addr, &len) < 0
+				|| len != sizeof local_addr) {
+				warn("unable to get local address");
+				goto no_conn;
+			}
 
 			if (full) {
 				/* Avoid overfilling the fd_set. */
@@ -445,10 +457,10 @@ int main(int argc, char **argv) {
 
 				putenv(strdup("PROTO=TCP"));
 				snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
-					inet_ntoa(listen_addr.sin_addr));
+					inet_ntoa(local_addr.sin_addr));
 				putenv(strdup(buf));
 				snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
-					ntohs(listen_addr.sin_port));
+					ntohs(local_addr.sin_port));
 				putenv(strdup(buf));
 				snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
 					inet_ntoa(child_addr.sin_addr));
