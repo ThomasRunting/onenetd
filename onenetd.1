@@ -1,4 +1,4 @@
-.TH onenetd 1 "17th June 2003" "Version 1.10" "Network Tools"
+.TH onenetd 1 "7th March 2005" "Version 1.11" "Network Tools"
 .SH NAME
 onenetd \- listen on a TCP port and launch a program to handle requests
 .SH SYNOPSIS
@@ -93,6 +93,21 @@ onenetd returns 0 on success, or 20 on failure (for instance, invalid
 arguments). Since onenetd is intended to run forever, the exit code is
 generally not important, and stderr should be examined for diagnostic messages
 if it exits unexpectedly.
+.SH ENVIRONMENT VARIABLES
+onenetd sets several variables in the child process's environment; these can be
+used for logging or access control.
+.TP
+.B TCPLOCALIP
+The local IPv4 address of the connected socket, in dotted quad format.
+.TP
+.B TCPLOCALPORT
+The local IPv4 port of the connected socket, as a decimal number.
+.TP
+.B TCPREMOTEIP
+The remote IPv4 address of the connected socket, in dotted quad format.
+.TP
+.B TCPREMOTEPORT
+The remote IPv4 port of the connected socket, as a decimal number.
 .SH EXAMPLES
 .TP
 onenetd 0 echo cat
@@ -111,7 +126,7 @@ envuidgid myuser onenetd -v -U 0 25098 myprog --my-arguments
 Set user and group to that of myuser, and run "myprog --my-arguments" for
 connections to port 25098 on any interface.
 .SH AUTHOR
-onenetd was written by Adam Sampson <azz@gnu.org>
+onenetd was written by Adam Sampson <ats@offog.org>
 .SH SEE ALSO
 .BR inetd (8),
 .BR argv0 (8),
