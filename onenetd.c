@@ -378,6 +378,16 @@ int main(int argc, char **argv) {
 			set_fd_cloexec(child_fd);
 
 			if (full) {
+				/* Avoid overfilling the fd_set. */
+				if (child_fd >= FD_SETSIZE && verbose) {
+					fprintf(stderr, "- dropped from %s "
+						"port %d\n",
+						inet_ntoa(child_addr.sin_addr),
+						ntohs(child_addr.sin_port));
+				}
+				if (child_fd >= FD_SETSIZE)
+					goto no_conn;
+
 				if (change_flags(child_fd, O_NONBLOCK, 0) < 0) {
 					warn("unable to set O_NONBLOCK");
 					goto no_conn;
