@@ -1,6 +1,6 @@
-dnl Process this file with autoconf to produce a configure script.
-AC_INIT(onenetd.c)
-AM_INIT_AUTOMAKE(onenetd, 1.9)
+AC_INIT(onenetd, 1.10, azz@us-lot.org)
+AM_INIT_AUTOMAKE
+AC_CONFIG_HEADERS(config.h)
 
 dnl Checks for programs.
 AC_PROG_CC
