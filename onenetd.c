@@ -57,9 +57,14 @@ typedef struct client {
 } client;
 client *clients = NULL;
 
+/* Print a warning. */
+void warn(const char *msg) {
+	fprintf(stderr, "%s\n", msg);
+}
+
 /* Die with an error message. */
 void die(const char *msg) {
-	fprintf(stderr, "%s\n", msg);
+	warn(msg);
 	exit(20);
 }
 
@@ -292,7 +297,7 @@ int main(int argc, char **argv) {
 			   empty sets and no timeout. */
 			n = select(max + 1, &read_fds, &write_fds, NULL, NULL);
 			if (n < 0 && errno != EINTR)
-				die("select failed");
+				warn("select failed");
 		} while (n < 0);
 
 		prev_cl = NULL;
@@ -318,16 +323,22 @@ int main(int argc, char **argv) {
 			
 			if (child_fd < 0 && (errno == EAGAIN || errno == EINTR))
 				goto no_conn;
-			if (child_fd < 0)
-				die("accept failed");
+			if (child_fd < 0) {
+				warn("accept failed");
+				goto no_conn;
+			}
 
 			if (full) {
-				if (fcntl(child_fd, F_SETFL, O_NONBLOCK) < 0)
-					die("unable to set O_NONBLOCK");
+				if (fcntl(child_fd, F_SETFL, O_NONBLOCK) < 0) {
+					warn("unable to set O_NONBLOCK");
+					goto no_conn;
+				}
 
 				cl = malloc(sizeof *cl);
-				if (!cl)
-					die("out of memory");
+				if (!cl) {
+					warn("out of memory");
+					goto no_conn;
+				}
 
 				cl->fd = child_fd;
 				cl->message = response;
@@ -350,13 +361,16 @@ int main(int argc, char **argv) {
 
 			n = 1;
 			if (no_delay && setsockopt(child_fd, IPPROTO_TCP,
-				TCP_NODELAY, &n, sizeof n) < 0)
-				die("unable to set TCP_NODELAY");
+				TCP_NODELAY, &n, sizeof n) < 0) {
+				warn("unable to set TCP_NODELAY");
+				goto no_conn;
+			}
 
-			conn_count++;
 			pid = fork();
-			if (pid < 0)
-				die("fork failed");
+			if (pid < 0) {
+				warn("fork failed");
+				goto no_conn;
+			}
 
 			if (pid == 0) {
 #define SIZE 80
@@ -385,7 +399,7 @@ int main(int argc, char **argv) {
 				_exit(20);
 			}
 
-			close(child_fd);
+			conn_count++;
 			if (verbose)
 				fprintf(stderr, "%d connected from %s "
 					"port %d (%d/%d)\n", pid,
@@ -393,7 +407,9 @@ int main(int argc, char **argv) {
 					ntohs(child_addr.sin_port),
 					conn_count, max_conns);
 
-			no_conn: ;
+			no_conn:
+			if (child_fd >= 0)
+				close(child_fd);
 		}	
 	}
 
