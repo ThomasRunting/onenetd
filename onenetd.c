@@ -1,6 +1,6 @@
 /*
    onenetd: a single-process inetd equivalent
-   Copyright 2001, 2002, 2003, 2005 Adam Sampson <ats@offog.org>
+   Copyright 2001, 2002, 2003, 2005, 2014 Adam Sampson <ats@offog.org>
 
    Please report bugs to ats@offog.org.
 

@@ -1,3 +1,5 @@
+1.12:
+
 (This only includes features; for bugfixes, see ChangeLog.)
 
 1.11: Set TCPLOCALIP to the real local address; document environment

@@ -1,4 +1,4 @@
-AC_INIT(onenetd, 1.11, ats@offog.org)
+AC_INIT(onenetd, 12, ats@offog.org)
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADERS(config.h)
 
