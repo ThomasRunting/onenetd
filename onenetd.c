@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
 	int n;
 	
 	while (1) {
-		char c = getopt(argc, argv, "+c:g:u:Ub:ODQvehr:");
+		int c = getopt(argc, argv, "+c:g:u:Ub:ODQvehr:");
 		if (c == -1)
 			break;
 		switch (c) {
