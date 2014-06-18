@@ -1,4 +1,4 @@
-AUTOMAKE_OPTIONS = no-dependencies
+AUTOMAKE_OPTIONS = no-dependencies foreign
 
 bin_PROGRAMS = onenetd
 onenetd_SOURCES = onenetd.c

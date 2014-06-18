@@ -112,8 +112,7 @@ void fd_set_add(int fd, fd_set *fds, int *max) {
 /* Print the usage message. */
 void usage(int code) {
 	fprintf(stderr, "onenetd version " VERSION "\n"
-		"Copyright 2001, 2002, 2003, 2005 Adam Sampson <ats@offog.org>\n"
-		"This is free software with ABSOLUTELY NO WARRANTY.\n\n"
+		"\n"
 		"Usage: onenetd [options] address port command ...\n"
 		"  address  Address to bind to (specify 0 for any address)\n"
 		"  port     TCP port to bind to\n"
@@ -132,7 +131,9 @@ void usage(int code) {
 		"  -r resp  once -c limit is reached, refuse clients\n"
 		"           with 'resp' rather than deferring them.\n"
 		"           resp may contain \\r, \\n, \\t.\n"
-		"  -h       show this usage message\n");
+		"  -h       show this usage message\n"
+		"\n"
+		"Report bugs to <ats@offog.org>.\n");
 	exit(code);
 }
 
