@@ -111,6 +111,15 @@ void fd_set_add(int fd, fd_set *fds, int *max) {
 	if (fd > *max) *max = fd;
 }
 
+/* Equivalent to putenv(strdup(s)), with error checking. */
+int putenv_dup(const char *s) {
+	char *copy = strdup(s);
+	if (copy == NULL)
+		die("strdup failed");
+
+	return putenv(copy);
+}
+
 /* Print the usage message. */
 void usage(int code) {
 	fprintf(stderr, "onenetd version " VERSION "\n"
@@ -467,19 +476,19 @@ int main(int argc, char **argv) {
 				if (stderr_to_socket)
 					dup2(child_fd, 2);
 
-				putenv(strdup("PROTO=TCP"));
+				putenv_dup("PROTO=TCP");
 				snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
 					inet_ntoa(local_addr.sin_addr));
-				putenv(strdup(buf));
+				putenv_dup(buf);
 				snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
 					ntohs(local_addr.sin_port));
-				putenv(strdup(buf));
+				putenv_dup(buf);
 				snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
 					inet_ntoa(child_addr.sin_addr));
-				putenv(strdup(buf));
+				putenv_dup(buf);
 				snprintf(buf, sizeof buf, "TCPREMOTEPORT=%d",
 					ntohs(child_addr.sin_port));
-				putenv(strdup(buf));
+				putenv_dup(buf);
 
 				execvp(command[0], command);
 				_exit(20);
