@@ -1,20 +1,101 @@
-1.12:
+- onenetd 1.12
+
+Tidy up the documentation: remove duplicate copyright notices, and merge
+the ChangeLog and NEWS files together.
 
 Make onenetd work on platforms like ARM where char is unsigned.
 
-(This only includes features; for bugfixes, see ChangeLog.)
+- onenetd 1.11
 
-1.11: Set TCPLOCALIP to the real local address; document environment
-      variables; change license.
-1.10: No functional changes.
-1.9: No functional changes.
-1.8: Add -e and manual page.
-1.7: Fix behaviour after server has been full.
-1.6: Always try to send response first; include child counts in status
-     messages.
-1.5: Remove test for host being "0"; made help better.
-1.4: Fix linking under Solaris.
-1.3: Removed -K.
-1.2: Added escape characters in response.
-1.1: Initial release.
+Change the license from the GPL to the Expat license.
 
+Use getsockname() to get the local address to put in TCPLOCALIP, rather
+than just using the listen address; this means that TCPLOCALIP will be
+set to the address of the interface the client connected to.
+
+Document the environment variables. Reported by Tim Bishop.
+
+Check that accept() returned a valid address.
+
+Catch a (harmless) out-of-memory crash while parsing options.  Reported
+by Ulf Härnhammar, who also did a security review of the code -- thanks!
+
+Update the list of connected clients correctly; previously
+clients weren't being added to the list at all, so memory would be
+leaked if the refusal message wasn't accepted immediately, and the child
+FD would be closed immediately anyway. Avoid overfilling fd_sets by
+dropping client connections if they wouldn't fit.
+
+- onenetd 1.10
+
+Set fd options correctly (required for Solaris).
+
+Block SIGCHLD except while select() is running.
+
+Use a self-pipe again, since the other way is not correct (it leaves
+zombies if the handler gets called early enough).
+
+Use FD_CLOEXEC to avoid leaking fds.
+
+Various cleanups.
+
+- onenetd 1.9
+
+Made all the errors that can occur in the main loop non-fatal.
+
+- onenetd 1.8
+
+Added -e to redirect stderr of child to socket.
+
+Removed obsolete -o and -d from getopt args.
+
+Wrote manual page.
+
+- onenetd 1.7
+
+Fixed bug where onenetd wouldn't accept any connections after it had
+been full -- it was calculating "full" in the wrong place.
+
+Made the disconnect message show the connection count after
+disconnection, which makes it easier to see how many clients are
+actually connected from the log.
+
+- onenetd 1.6
+
+Avoid selecting on the listening socket when full.
+
+Split out the "send response" code, so that we can call it when we first
+notice a socket needs a response, which saves a call to select().
+
+Made the status messages include the number of children running.
+
+- onenetd 1.5
+
+Removed redundant test for host being "0", since inet_addr handles this
+case already.
+
+Changed uid and gid to longs, since uid_t and gid_t aren't signed under
+dietlibc.
+
+Made help a bit more helpful.
+
+Removed malloc debugging code.
+
+- onenetd 1.4
+
+Fix linking under Solaris.
+
+- onenetd 1.3
+
+Due to missing features on Solaris: removed -K (kill IP options),
+replaced setenv with putenv, replaced inet_ntoa with inet_addr.
+
+Added escape characters in response string.
+
+- onenetd 1.2
+
+Added escape characters in response.
+
+- onenetd 1.1
+
+Initial release.
