@@ -43,8 +43,10 @@
 
 int max_conns = 40;
 int conn_count = 0;
-long gid = -1;
-long uid = -1;
+int use_gid = 0;
+gid_t gid = 0;
+int use_uid = 0;
+uid_t uid = 0;
 int backlog = 10;
 int no_delay = 0;
 int verbose = 0;
@@ -57,7 +59,7 @@ int listen_fd;
 typedef struct client {
 	int fd;
 	char *message;
-	int left;
+	size_t left;
 	struct client *next;
 } client;
 client *clients = NULL;
@@ -141,7 +143,7 @@ void usage(int code) {
    from the list if we've sent all of it. */
 void try_to_send(client *prev_cl, client *cl) {
 	int remove = 0;
-	int count = write(cl->fd, cl->message, cl->left);
+	ssize_t count = write(cl->fd, cl->message, cl->left);
 
 	if (count >= 0) {
 		cl->message += count;
@@ -173,7 +175,7 @@ int main(int argc, char **argv) {
 	struct sockaddr_in listen_addr;
 	char *s, *r;
 	int n;
-	
+
 	while (1) {
 		int c = getopt(argc, argv, "+c:g:u:Ub:ODQvehr:");
 		if (c == -1)
@@ -183,19 +185,23 @@ int main(int argc, char **argv) {
 			max_conns = atoi(optarg);
 			break;
 		case 'g':
+			use_gid = 1;
 			gid = atoi(optarg);
 			break;
 		case 'u':
+			use_uid = 1;
 			uid = atoi(optarg);
 			break;
 		case 'U':
 			s = getenv("GID");
 			if (!s)
 				die("-U specified but no $GID");
+			use_gid = 1;
 			gid = atoi(s);
 			s = getenv("UID");
 			if (!s)
 				die("-U specified but no $UID");
+			use_uid = 1;
 			uid = atoi(s);
 			break;
 		case 'b':
@@ -292,10 +298,10 @@ int main(int argc, char **argv) {
 	if (listen(listen_fd, backlog) < 0)
 		die("unable to listen");
 
-	if (gid != -1)
+	if (use_gid)
 		if (setgid(gid) < 0)
 			die("unable to setgid");
-	if (uid != -1)
+	if (use_uid)
 		if (setuid(uid) < 0)
 			die("unable to setuid");
 
@@ -355,19 +361,20 @@ int main(int argc, char **argv) {
 			read(selfpipe[0], &c, 1);
 
 			while (1) {
-				n = waitpid(-1, NULL, WNOHANG);
-				if (n <= 0) break;
+				pid_t pid = waitpid(-1, NULL, WNOHANG);
+				if (pid <= 0)
+					break;
 
 				conn_count--;
 				if (verbose)
-					fprintf(stderr, "%d closed (%d/%d)\n", n, conn_count, max_conns);
+					fprintf(stderr, "%ld closed (%d/%d)\n", (long) pid, conn_count, max_conns);
 			}
 		}
 
 		if (FD_ISSET(listen_fd, &read_fds)) {
-			int pid;
+			pid_t pid;
 			struct sockaddr_in local_addr, child_addr;
-			int len = sizeof child_addr;
+			socklen_t len = sizeof child_addr;
 			int child_fd;
 
 			if (full && !response)
@@ -480,8 +487,8 @@ int main(int argc, char **argv) {
 
 			conn_count++;
 			if (verbose)
-				fprintf(stderr, "%d connected from %s "
-					"port %d (%d/%d)\n", pid,
+				fprintf(stderr, "%ld connected from %s "
+					"port %d (%d/%d)\n", (long) pid,
 					inet_ntoa(child_addr.sin_addr),
 					ntohs(child_addr.sin_port),
 					conn_count, max_conns);

@@ -3,7 +3,9 @@
 Tidy up the documentation: remove duplicate copyright notices, and merge
 the ChangeLog and NEWS files together.
 
-Make onenetd work on platforms like ARM where char is unsigned.
+Make onenetd work on ARM: correct a number of type errors in the code,
+where it was using an inappropriate type to hold a return value from a
+library function.
 
 - onenetd 1.11
 
