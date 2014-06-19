@@ -1,7 +1,8 @@
 - onenetd 1.12
 
-Tidy up the documentation: remove duplicate copyright notices, and merge
-the ChangeLog and NEWS files together.
+Tidy up the documentation: remove duplicate copyright notices, merge
+the ChangeLog and NEWS files together, ensure all options and
+environment variables are documented in the help and man page.
 
 Make onenetd work on ARM: correct a number of type errors in the code,
 where it was using an inappropriate type to hold a return value from a

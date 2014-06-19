@@ -1,4 +1,4 @@
-.TH onenetd 1 "7th March 2005" "Version 1.11" "Network Tools"
+.TH onenetd 1 "19th June 2014" "Version 12" "Network Tools"
 .SH NAME
 onenetd \- listen on a TCP port and launch a program to handle requests
 .SH SYNOPSIS
@@ -75,6 +75,10 @@ Print messages to stderr indicating clients connecting and disconnecting.
 These can be collected for logging purposes using logger, multilog from
 daemontools, or dumblog from freedt.
 .TP
+.B \-e
+Redirect the child's stderr to the socket. By default, only stdin and stdout
+are redirected.
+.TP
 .B \-h
 Print a brief usage message, then exit. The same message will be shown if
 unknown or invalid arguments are passed.
@@ -94,8 +98,12 @@ arguments). Since onenetd is intended to run forever, the exit code is
 generally not important, and stderr should be examined for diagnostic messages
 if it exits unexpectedly.
 .SH ENVIRONMENT VARIABLES
-onenetd sets several variables in the child process's environment; these can be
-used for logging or access control.
+Following D. J. Bernstein's UCSPI standard, onenetd sets several variables in
+the child process's environment. These can be used for logging or access
+control.
+.TP
+.B PROTO
+The string "TCP".
 .TP
 .B TCPLOCALIP
 The local IPv4 address of the connected socket, in dotted quad format.

@@ -139,6 +139,7 @@ void usage(int code) {
 		"  -D       set TCP_NODELAY option on sockets\n"
 		"  -e       redirect stderr of children to socket\n"
 		"  -v       be verbose\n"
+		"  -Q       don't be verbose (default)\n"
 		"  -r resp  once -c limit is reached, refuse clients\n"
 		"           with 'resp' rather than deferring them.\n"
 		"           resp may contain \\r, \\n, \\t.\n"
@@ -186,7 +187,7 @@ int main(int argc, char **argv) {
 	int n;
 
 	while (1) {
-		int c = getopt(argc, argv, "+c:g:u:Ub:ODQvehr:");
+		int c = getopt(argc, argv, "+c:g:u:Ub:DQvehr:");
 		if (c == -1)
 			break;
 		switch (c) {
