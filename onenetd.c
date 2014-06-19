@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
 			pid_t pid;
 			struct sockaddr_in local_addr, child_addr;
 			socklen_t len = sizeof child_addr;
-			int child_fd;
+			int child_fd = -1;
 
 			if (full && !response)
 				goto no_conn;

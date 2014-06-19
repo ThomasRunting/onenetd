@@ -7,6 +7,8 @@ Make onenetd work on ARM: correct a number of type errors in the code,
 where it was using an inappropriate type to hold a return value from a
 library function.
 
+Fix an uninitialised variable use (spotted by clang).
+
 - onenetd 1.11
 
 Change the license from the GPL to the Expat license.
