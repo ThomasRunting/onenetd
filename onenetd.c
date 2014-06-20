@@ -234,6 +234,138 @@ void try_to_send(client *prev_cl, client *cl) {
 	}
 }
 
+/* Accept a new connection, and either spawn a new child process or add it to
+   the list of clients to reject. */
+void accept_connection(int listen_fd, int full) {
+	pid_t pid;
+	struct sockaddr_in local_addr, child_addr;
+	socklen_t len = sizeof child_addr;
+	int child_fd = -1;
+	int n;
+
+	if (full && !response)
+		goto no_conn;
+
+	child_fd = accept(listen_fd,
+		(struct sockaddr *)&child_addr, &len);
+
+	if (len != sizeof child_addr) {
+		warn("unable to get remote address");
+		goto no_conn;
+	}
+	if (child_fd < 0 && errno == EAGAIN)
+		goto no_conn;
+	if (child_fd < 0) {
+		warn("accept failed");
+		goto no_conn;
+	}
+	set_fd_cloexec(child_fd);
+
+	len = sizeof local_addr;
+	if (getsockname(child_fd,
+		(struct sockaddr *)&local_addr, &len) < 0
+		|| len != sizeof local_addr) {
+		warn("unable to get local address");
+		goto no_conn;
+	}
+
+	if (full) {
+		client *cl;
+
+		/* Avoid overfilling the fd_set. */
+		if (child_fd >= FD_SETSIZE && verbose) {
+			fprintf(stderr, "- dropped from %s "
+				"port %d\n",
+				inet_ntoa(child_addr.sin_addr),
+				ntohs(child_addr.sin_port));
+		}
+		if (child_fd >= FD_SETSIZE)
+			goto no_conn;
+
+		if (change_flags(child_fd, O_NONBLOCK, 0) < 0) {
+			warn("unable to set O_NONBLOCK");
+			goto no_conn;
+		}
+
+		cl = malloc(sizeof *cl);
+		if (!cl) {
+			warn("out of memory");
+			goto no_conn;
+		}
+
+		cl->fd = child_fd;
+		child_fd = -1;
+		cl->message = response;
+		cl->left = strlen(cl->message);
+		cl->next = clients;
+		clients = cl;
+
+		if (verbose)
+			fprintf(stderr, "- refused from %s "
+				"port %d\n",
+				inet_ntoa(child_addr.sin_addr),
+				ntohs(child_addr.sin_port));
+
+		/* Try to send the response now; if we send
+		   all of it it'll get removed from the list
+		   again. */
+		try_to_send(NULL, cl);
+
+		goto no_conn;
+	}
+
+	n = 1;
+	if (no_delay && setsockopt(child_fd, IPPROTO_TCP,
+		TCP_NODELAY, &n, sizeof n) < 0) {
+		warn("unable to set TCP_NODELAY");
+		goto no_conn;
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		warn("fork failed");
+		goto no_conn;
+	}
+
+	if (pid == 0) {
+		char buf[80];
+
+		dup2(child_fd, 0);
+		dup2(child_fd, 1);
+		if (stderr_to_socket)
+			dup2(child_fd, 2);
+
+		putenv_dup("PROTO=TCP");
+		snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
+			inet_ntoa(local_addr.sin_addr));
+		putenv_dup(buf);
+		snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
+			ntohs(local_addr.sin_port));
+		putenv_dup(buf);
+		snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
+			inet_ntoa(child_addr.sin_addr));
+		putenv_dup(buf);
+		snprintf(buf, sizeof buf, "TCPREMOTEPORT=%d",
+			ntohs(child_addr.sin_port));
+		putenv_dup(buf);
+
+		execvp(command[0], command);
+		_exit(20);
+	}
+
+	conn_count++;
+	if (verbose)
+		fprintf(stderr, "%ld connected from %s "
+			"port %d (%d/%d)\n", (long) pid,
+			inet_ntoa(child_addr.sin_addr),
+			ntohs(child_addr.sin_port),
+			conn_count, max_conns);
+
+no_conn:
+	if (child_fd >= 0)
+		close(child_fd);
+}
+
 int main(int argc, char **argv) {
 	struct sigaction sa;
 	sigset_t sig_chld;
@@ -403,131 +535,8 @@ int main(int argc, char **argv) {
 		}
 
 		if (FD_ISSET(listen_fd, &read_fds)) {
-			pid_t pid;
-			struct sockaddr_in local_addr, child_addr;
-			socklen_t len = sizeof child_addr;
-			int child_fd = -1;
-
-			if (full && !response)
-				goto no_conn;
-
-			child_fd = accept(listen_fd,
-				(struct sockaddr *)&child_addr, &len);
-			
-			if (len != sizeof child_addr) {
-				warn("unable to get remote address");
-				goto no_conn;
-			}
-			if (child_fd < 0 && errno == EAGAIN)
-				goto no_conn;
-			if (child_fd < 0) {
-				warn("accept failed");
-				goto no_conn;
-			}
-			set_fd_cloexec(child_fd);
-
-			len = sizeof local_addr;
-			if (getsockname(child_fd,
-				(struct sockaddr *)&local_addr, &len) < 0
-				|| len != sizeof local_addr) {
-				warn("unable to get local address");
-				goto no_conn;
-			}
-
-			if (full) {
-				/* Avoid overfilling the fd_set. */
-				if (child_fd >= FD_SETSIZE && verbose) {
-					fprintf(stderr, "- dropped from %s "
-						"port %d\n",
-						inet_ntoa(child_addr.sin_addr),
-						ntohs(child_addr.sin_port));
-				}
-				if (child_fd >= FD_SETSIZE)
-					goto no_conn;
-
-				if (change_flags(child_fd, O_NONBLOCK, 0) < 0) {
-					warn("unable to set O_NONBLOCK");
-					goto no_conn;
-				}
-
-				cl = malloc(sizeof *cl);
-				if (!cl) {
-					warn("out of memory");
-					goto no_conn;
-				}
-
-				cl->fd = child_fd;
-				child_fd = -1;
-				cl->message = response;
-				cl->left = strlen(cl->message);
-				cl->next = clients;
-				clients = cl;
-
-				if (verbose)
-					fprintf(stderr, "- refused from %s "
-						"port %d\n",
-						inet_ntoa(child_addr.sin_addr),
-						ntohs(child_addr.sin_port));
-	
-				/* Try to send the response now; if we send
-				   all of it it'll get removed from the list
-				   again. */
-				try_to_send(NULL, cl);
-
-				goto no_conn;
-			}
-
-			n = 1;
-			if (no_delay && setsockopt(child_fd, IPPROTO_TCP,
-				TCP_NODELAY, &n, sizeof n) < 0) {
-				warn("unable to set TCP_NODELAY");
-				goto no_conn;
-			}
-
-			pid = fork();
-			if (pid < 0) {
-				warn("fork failed");
-				goto no_conn;
-			}
-
-			if (pid == 0) {
-				char buf[80];
-
-				dup2(child_fd, 0);
-				dup2(child_fd, 1);
-				if (stderr_to_socket)
-					dup2(child_fd, 2);
-
-				putenv_dup("PROTO=TCP");
-				snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
-					inet_ntoa(local_addr.sin_addr));
-				putenv_dup(buf);
-				snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
-					ntohs(local_addr.sin_port));
-				putenv_dup(buf);
-				snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
-					inet_ntoa(child_addr.sin_addr));
-				putenv_dup(buf);
-				snprintf(buf, sizeof buf, "TCPREMOTEPORT=%d",
-					ntohs(child_addr.sin_port));
-				putenv_dup(buf);
-
-				execvp(command[0], command);
-				_exit(20);
-			}
-
-			conn_count++;
-			if (verbose)
-				fprintf(stderr, "%ld connected from %s "
-					"port %d (%d/%d)\n", (long) pid,
-					inet_ntoa(child_addr.sin_addr),
-					ntohs(child_addr.sin_port),
-					conn_count, max_conns);
-
-			no_conn:
-			if (child_fd >= 0)
-				close(child_fd);
-		}	
+			accept_connection(listen_fd, full);
+		}
 	}
 
 	return 0;
