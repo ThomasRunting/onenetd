@@ -1,0 +1,286 @@
+#!/usr/bin/python
+# Test suite for onenetd.
+# Copyright 2014 Adam Sampson <ats@offog.org>
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+import os
+import socket
+import subprocess
+import sys
+import threading
+
+def die(*s):
+    sys.stdout.write("".join(map(str, s)) + "\n")
+    sys.exit(1)
+
+def child():
+    """Child process for onenetd."""
+
+    assert os.getenv("PROTO") == "TCP"
+
+    def put(s):
+        sys.stdout.write(s + "\n")
+        sys.stdout.flush()
+
+    put("hello")
+
+    while True:
+        l = sys.stdin.readline()
+        if l == "":
+            break
+
+        put("echo " + l.strip())
+
+    return 0
+
+class Barrier:
+    """A cyclic barrier.
+    Synchronisation object upon which a number of threads are enrolled.
+    When a thread calls wait(), it will block until every other enrolled thread
+    has also called wait(), then all the threads can continue."""
+
+    def __init__(self, init_count):
+        self.init_count = init_count
+        self.count = init_count
+        self.lock = threading.Lock()
+        self.event = threading.Event()
+
+    def sync(self):
+        with self.lock:
+            self.count -= 1
+            was_last = False
+            event = self.event
+            if self.count == 0:
+                self.count = self.init_count
+                self.event.set()
+                # Replace the Event with a new one for the next cycle.
+                self.event = threading.Event()
+                was_last = True
+        if not was_last:
+            event.wait()
+
+class Failure(Exception): pass
+class ConnectionFailure(Failure): pass
+class RefusedFailure(Failure): pass
+
+class Connector(threading.Thread):
+    def __init__(self, address, bar=None):
+        super(Connector, self).__init__()
+        self.address = address
+        self.bar = bar
+        self.exception = None
+
+    def run(self):
+        try:
+            self.real_run()
+        except Exception as e:
+            self.exception = e
+
+    def real_run(self):
+        try:
+            sock = socket.create_connection(self.address).makefile()
+        except IOError:
+            raise ConnectionFailure("connection failed")
+
+        try:
+            l = sock.readline()
+            if l.strip() != "hello":
+                raise RefusedFailure("expected hello, got " + repr(l))
+
+            if self.bar:
+                self.bar.sync()
+                self.bar.sync()
+
+        finally:
+            sock.close()
+
+class Tester:
+    def __init__(self, onenetd):
+        self.proc = None
+        self.onenetd = onenetd
+
+        self.port = None
+        self.addr = None
+
+    def begin(self, name, args=[]):
+        self.end()
+
+        # Start up onenetd.
+        cmd = [
+            self.onenetd,
+            "-v",
+            "-1",
+            ] + args + [
+            "0", "0",
+            sys.argv[0], "--child",
+            ]
+        self.proc = subprocess.Popen(cmd,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+
+        # What port did it bind to?
+        port = int(self.proc.stdout.readline())
+        self.addr = ("127.0.0.1", port)
+
+        print ">>> %-40s %s" % (name, str(self.addr))
+
+    def expect(self, substr, n=1):
+        for i in range(n):
+            l = self.proc.stderr.readline()
+            print "| " + l.rstrip()
+            if l.find(substr) == -1:
+                raise Failure("expecting " + repr(substr) + ", got " + repr(l))
+
+    def end(self):
+        if self.proc is not None:
+            # Stop onenetd.
+            self.proc.terminate()
+            self.proc.wait()
+
+            self.proc = None
+
+    def run(self):
+        """Run the test suite against onenetd."""
+
+        def start_n(n, **kwargs):
+            ts = set()
+            for i in range(n):
+                t = Connector(self.addr, **kwargs)
+                t.daemon = True
+                t.start()
+                ts.add(t)
+            return ts
+
+        def join_all(ts, expect=[], expect_all=True):
+            found_expected = 0
+
+            for t in ts:
+                t.join()
+
+                if t.exception is not None:
+                    for k in expect:
+                        if isinstance(t.exception, k):
+                            found_expected += 1
+                            break
+                    else:
+                        raise t.exception
+
+            if len(expect) != 0:
+                if expect_all:
+                    if len(ts) != found_expected:
+                        raise Failure("expected %d %s exceptions"
+                                      % (len(ts), repr(expect)))
+                else:
+                    if found_expected == 0:
+                        raise Failure("excepted a %s exception" % repr(expect))
+
+        self.begin("single connection")
+        ts = start_n(1)
+        self.expect("connected")
+        join_all(ts)
+        self.expect("closed")
+
+        limit = 10
+        limit_args = ["-c", str(limit)]
+
+        self.begin("multiple connections", limit_args)
+        ts = start_n(limit)
+        self.expect("", 2 * limit)
+        join_all(ts)
+
+        self.begin("limit with message", limit_args + ["-r", "refused\\n"])
+        # Open (limit - 1) connections.
+        bar_a = Barrier(limit)
+        ts_a = start_n(limit - 1, bar=bar_a)
+        bar_a.sync()
+        self.expect("connected", limit - 1)
+        for i in range(10):
+            # Open one more -- should work.
+            bar_b = Barrier(2)
+            ts_b = start_n(1, bar=bar_b)
+            bar_b.sync()
+            self.expect("connected")
+            # Open one more -- should fail.
+            ts_c = start_n(1)
+            self.expect("refused")
+            join_all(ts_c, [RefusedFailure])
+            # Drop one.
+            bar_b.sync()
+            self.expect("closed")
+            join_all(ts_b)
+        # Drop the original set.
+        bar_a.sync()
+        join_all(ts_a)
+        self.expect("closed", limit - 2)
+        self.expect("(0/")
+
+        self.begin("limit without message", limit_args)
+        # Open (limit - 1) connections.
+        bar_a = Barrier(limit)
+        ts_a = start_n(limit - 1, bar=bar_a)
+        bar_a.sync()
+        self.expect("connected", limit - 1)
+        for i in range(10):
+            # Open one more -- should work.
+            bar_b = Barrier(2)
+            ts_b = start_n(1, bar=bar_b)
+            bar_b.sync()
+            self.expect("connected")
+            # Open one more -- connect() will succeed, but onenetd won't accept
+            # it yet.
+            ts_c = start_n(1)
+            # Drop one. We should then get "closed" followed by "connected" as
+            # the queued connection is accepted.
+            bar_b.sync()
+            join_all(ts_b)
+            self.expect("closed")
+            self.expect("connected")
+            # Drop the other one.
+            join_all(ts_c)
+            self.expect("closed")
+        # Drop the original set.
+        bar_a.sync()
+        join_all(ts_a)
+        self.expect("closed", limit - 2)
+        self.expect("(0/")
+
+def main(args):
+    if len(args) != 1:
+        die("Usage: test-onenetd ONENETD")
+
+    if args[0] == "--child":
+        return child()
+
+    tester = Tester(args[0])
+    try:
+        tester.run()
+    except Failure as e:
+        die("Test failed: " + str(e))
+        return 1
+    finally:
+        tester.end()
+
+    # Success!
+    print "All tests passed"
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

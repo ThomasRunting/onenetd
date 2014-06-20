@@ -4,5 +4,9 @@ bin_PROGRAMS = onenetd
 onenetd_SOURCES = onenetd.c
 man_MANS = onenetd.1
 
-EXTRA_DIST = $(man_MANS)
+if WITH_TESTS
+check-local:
+	$(srcdir)/test-onenetd ./onenetd
+endif
 
+EXTRA_DIST = $(man_MANS) test-onenetd

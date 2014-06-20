@@ -15,6 +15,9 @@ by clang).
 
 Add the -1 option.
 
+Automate the test suite. There used to be some scripts in the repository
+for testing it by hand; now "make check" will do the right thing.
+
 - onenetd 1.11
 
 Change the license from the GPL to the Expat license.
