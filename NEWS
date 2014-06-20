@@ -4,6 +4,9 @@ Tidy up the documentation: remove duplicate copyright notices, merge
 the ChangeLog and NEWS files together, ensure all options and
 environment variables are documented in the help and man page.
 
+Change the license (again) from the Expat license to the ISC license,
+which is equivalent and simpler.
+
 Refactor the code in the interests of making the main function a bit
 less huge and deeply nested.
 
