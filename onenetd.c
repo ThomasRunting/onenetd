@@ -54,6 +54,10 @@ int verbose = 0;
 int stderr_to_socket = 0;
 char *response = NULL;
 char **command;
+
+/* This pipe is used to safely detect SIGCHLD: the SIGCHLD handler writes a
+   character to it, and the main loop can then reap children later.
+   (See http://cr.yp.to/docs/selfpipe.html for details.) */
 int selfpipe[2];
 
 typedef struct client {
@@ -459,6 +463,7 @@ int main(int argc, char **argv) {
 	listen_fd = make_listen_socket(argv[optind], argv[optind + 1]);
 	command = &argv[optind + 2];
 
+	/* Drop privileges. */
 	if (use_gid)
 		if (setgid(gid) < 0)
 			die("unable to setgid");
@@ -466,6 +471,7 @@ int main(int argc, char **argv) {
 		if (setuid(uid) < 0)
 			die("unable to setuid");
 
+	/* Create the self-pipe. */
 	if (pipe(selfpipe) < 0)
 		die("unable to create self-pipe");
 	if (change_flags(selfpipe[1], O_NONBLOCK, 0) < 0)
@@ -495,6 +501,9 @@ int main(int argc, char **argv) {
 			full = conn_count >= max_conns;
 			FD_ZERO(&read_fds);
 			fd_set_add(selfpipe[0], &read_fds, &max);
+			/* If we're full, and we don't have a response to send,
+			   then we don't want to accept new connections -- so
+			   don't check listen_fd. */
 			if (!(full && !response))
 				fd_set_add(listen_fd, &read_fds, &max);
 
