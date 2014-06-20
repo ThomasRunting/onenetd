@@ -34,7 +34,8 @@ The hostname or IP address to bind() to. Specify 0 to bind to all addresses.
 .B PORT
 The service name or port number to bind() to. In order to bind to a privileged
 port, onenetd must be initially run as root (although you can use the -u etc.
-options to switch to another user after the bind has been done).
+options to switch to another user after the bind has been done). Specify 0 to
+bind to any available port.
 .TP
 .B COMMAND ...
 The command to execute, as well as its parameters (all parameters given to
@@ -56,6 +57,11 @@ After binding the TCP socket, setuid(UID). UID must be numeric.
 After binding the TCP socket, setgid($GID) and setuid($UID). $GID and $UID must
 be numeric. This is intended for use with envuidgid (from daemontools or
 freedt).
+.TP
+.B \-1
+After binding the TCP socket, print the local port number to stdout.
+You can use this when you've specified the local port as 0 to find out what
+port has been chosen.
 .TP
 .B \-b N
 Set the listen() backlog to N. Note that on many operating systems, the listen

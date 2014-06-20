@@ -13,6 +13,8 @@ Fix an uninitialised variable use (spotted by clang).
 Check that strdup hasn't failed when setting up the environment (spotted
 by clang).
 
+Add the -1 option.
+
 - onenetd 1.11
 
 Change the license from the GPL to the Expat license.

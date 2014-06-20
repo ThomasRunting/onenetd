@@ -47,6 +47,7 @@ int use_gid = 0;
 gid_t gid = 0;
 int use_uid = 0;
 uid_t uid = 0;
+int show_port = 0;
 int backlog = 10;
 int no_delay = 0;
 int verbose = 0;
@@ -125,8 +126,8 @@ void usage(int code) {
 	fprintf(stderr, "onenetd version " VERSION "\n"
 		"\n"
 		"Usage: onenetd [options] address port command ...\n"
-		"  address  Address to bind to (specify 0 for any address)\n"
-		"  port     TCP port to bind to\n"
+		"  address  Address to bind to (0 for all local addresses)\n"
+		"  port     TCP port to bind to (0 for any available port)\n"
 		"  command  Command to execute\n"
 		"Options:\n"
 		"  -c N     limit to at most N children running (default 40).\n"
@@ -135,6 +136,7 @@ void usage(int code) {
 		"  -g gid   setgid(gid) after binding\n"
 		"  -u uid   setuid(uid) after binding\n"
 		"  -U       setuid($UID) and setgid($GID) after binding\n"
+		"  -1       print local port number to stdout after binding\n"
 		"  -b N     set listen() backlog to N\n"
 		"  -D       set TCP_NODELAY option on sockets\n"
 		"  -e       redirect stderr of children to socket\n"
@@ -187,7 +189,7 @@ int main(int argc, char **argv) {
 	int n;
 
 	while (1) {
-		int c = getopt(argc, argv, "+c:g:u:Ub:DQvehr:");
+		int c = getopt(argc, argv, "+c:g:u:U1b:DQvehr:");
 		if (c == -1)
 			break;
 		switch (c) {
@@ -213,6 +215,9 @@ int main(int argc, char **argv) {
 				die("-U specified but no $UID");
 			use_uid = 1;
 			uid = atoi(s);
+			break;
+		case '1':
+			show_port = 1;
 			break;
 		case 'b':
 			backlog = atoi(optarg);
@@ -314,6 +319,15 @@ int main(int argc, char **argv) {
 	if (use_uid)
 		if (setuid(uid) < 0)
 			die("unable to setuid");
+
+	if (show_port) {
+		socklen_t size = sizeof listen_addr;
+		if (getsockname(listen_fd, (struct sockaddr *)&listen_addr,
+			&size) < 0)
+			die("unable to get bound address");
+		printf("%d\n", ntohs(listen_addr.sin_port));
+		fflush(stdout);
+	}
 
 	sigemptyset(&sig_chld);
 	sigaddset(&sig_chld, SIGCHLD);
