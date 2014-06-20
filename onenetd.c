@@ -55,7 +55,6 @@ int stderr_to_socket = 0;
 char *response = NULL;
 char **command;
 int selfpipe[2];
-int listen_fd;
 
 typedef struct client {
 	int fd;
@@ -151,6 +150,60 @@ void usage(int code) {
 	exit(code);
 }
 
+/* Create and bind the listening socket. */
+int make_listen_socket(const char *address, const char *port) {
+	struct sockaddr_in listen_addr;
+	int n, fd;
+
+	listen_addr.sin_family = AF_INET;
+
+	listen_addr.sin_addr.s_addr = inet_addr(address);
+	if (listen_addr.sin_addr.s_addr == -1) {
+		struct hostent *he = gethostbyname(address);
+		if ((!he) || (he->h_addrtype != AF_INET)
+			|| (he->h_addr == 0))
+			die("unable to resolve listen host");
+		listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
+	}
+
+	n = atoi(port);
+	if (n == 0 && strcmp(port, "0") != 0) {
+		struct servent *se = getservbyname(port, "tcp");
+		if (!se)
+			die("unable to resolve listen port");
+		n = se->s_port;
+	} else {
+		n = htons(n);
+	}
+	listen_addr.sin_port = n;
+
+	fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0)
+		die("unable to create socket");
+	if (change_flags(fd, O_NONBLOCK, 0) < 0)
+		die("unable to set O_NONBLOCK");
+	set_fd_cloexec(fd);
+	n = 1;
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n) < 0)
+		die("unable to set SO_REUSEADDR");
+	if (bind(fd, (struct sockaddr *)&listen_addr,
+		sizeof listen_addr) < 0)
+		die("unable to bind to listen address");
+	if (listen(fd, backlog) < 0)
+		die("unable to listen");
+
+	if (show_port) {
+		socklen_t size = sizeof listen_addr;
+		if (getsockname(fd, (struct sockaddr *)&listen_addr,
+			&size) < 0)
+			die("unable to get bound address");
+		printf("%d\n", ntohs(listen_addr.sin_port));
+		fflush(stdout);
+	}
+
+	return fd;
+}
+
 /* Try to send a chunk of the response to a client. Remove the client
    from the list if we've sent all of it. */
 void try_to_send(client *prev_cl, client *cl) {
@@ -184,7 +237,7 @@ void try_to_send(client *prev_cl, client *cl) {
 int main(int argc, char **argv) {
 	struct sigaction sa;
 	sigset_t sig_chld;
-	struct sockaddr_in listen_addr;
+	int listen_fd;
 	char *s, *r;
 	int n;
 
@@ -266,52 +319,8 @@ int main(int argc, char **argv) {
 	if ((argc - optind) < 3)
 		usage(20);
 
-	listen_addr.sin_family = AF_INET;
-
-	s = argv[optind++];
-	listen_addr.sin_addr.s_addr = inet_addr(s);
-	if (listen_addr.sin_addr.s_addr == -1) {
-		struct hostent *he = gethostbyname(s);
-		if ((!he) || (he->h_addrtype != AF_INET)
-			|| (he->h_addr == 0))
-			die("unable to resolve listen host");
-		listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
-	}
-
-	s = argv[optind++];
-	n = atoi(s);
-	if (n == 0 && strcmp(s, "0") != 0) {
-		struct servent *se = getservbyname(s, "tcp");
-		if (!se)
-			die("unable to resolve listen port");
-		n = se->s_port;
-	} else {
-		n = htons(n);
-	}
-	listen_addr.sin_port = n;
-	command = &argv[optind];
-
-	if (pipe(selfpipe) < 0)
-		die("unable to create self-pipe");
-	if (change_flags(selfpipe[1], O_NONBLOCK, 0) < 0)
-		die("unable to set O_NONBLOCK");
-	set_fd_cloexec(selfpipe[0]);
-	set_fd_cloexec(selfpipe[1]);
-
-	listen_fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (listen_fd < 0)
-		die("unable to create socket");
-	if (change_flags(listen_fd, O_NONBLOCK, 0) < 0)
-		die("unable to set O_NONBLOCK");
-	set_fd_cloexec(listen_fd);
-	n = 1;
-	if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n) < 0)
-		die("unable to set SO_REUSEADDR");
-	if (bind(listen_fd, (struct sockaddr *)&listen_addr,
-		sizeof listen_addr) < 0)
-		die("unable to bind to listen address");
-	if (listen(listen_fd, backlog) < 0)
-		die("unable to listen");
+	listen_fd = make_listen_socket(argv[optind], argv[optind + 1]);
+	command = &argv[optind + 2];
 
 	if (use_gid)
 		if (setgid(gid) < 0)
@@ -320,14 +329,12 @@ int main(int argc, char **argv) {
 		if (setuid(uid) < 0)
 			die("unable to setuid");
 
-	if (show_port) {
-		socklen_t size = sizeof listen_addr;
-		if (getsockname(listen_fd, (struct sockaddr *)&listen_addr,
-			&size) < 0)
-			die("unable to get bound address");
-		printf("%d\n", ntohs(listen_addr.sin_port));
-		fflush(stdout);
-	}
+	if (pipe(selfpipe) < 0)
+		die("unable to create self-pipe");
+	if (change_flags(selfpipe[1], O_NONBLOCK, 0) < 0)
+		die("unable to set O_NONBLOCK");
+	set_fd_cloexec(selfpipe[0]);
+	set_fd_cloexec(selfpipe[1]);
 
 	sigemptyset(&sig_chld);
 	sigaddset(&sig_chld, SIGCHLD);
@@ -525,4 +532,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-

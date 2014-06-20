@@ -4,6 +4,9 @@ Tidy up the documentation: remove duplicate copyright notices, merge
 the ChangeLog and NEWS files together, ensure all options and
 environment variables are documented in the help and man page.
 
+Refactor the code in the interests of making the main function a bit
+less huge and deeply nested.
+
 Make onenetd work on ARM: correct a number of type errors in the code,
 where it was using an inappropriate type to hold a return value from a
 library function.
