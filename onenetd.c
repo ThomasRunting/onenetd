@@ -240,11 +240,10 @@ void accept_connection(int listen_fd, int full) {
 	pid_t pid;
 	struct sockaddr_in local_addr, child_addr;
 	socklen_t len = sizeof child_addr;
-	int child_fd = -1;
+	int child_fd;
 	int n;
 
 	child_fd = accept(listen_fd, (struct sockaddr *)&child_addr, &len);
-
 	if (len != sizeof child_addr) {
 		warn("unable to get remote address");
 		goto no_conn;
@@ -319,7 +318,6 @@ void accept_connection(int listen_fd, int full) {
 		warn("fork failed");
 		goto no_conn;
 	}
-
 	if (pid == 0) {
 		char buf[80];
 
