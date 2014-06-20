@@ -513,15 +513,6 @@ int main(int argc, char **argv) {
 				die("unable to restore signal mask");
 		} while (n < 0);
 
-		prev_cl = NULL;
-		for (cl = clients; cl; cl = next_cl) {
-			next_cl = cl->next;
-
-			if (FD_ISSET(cl->fd, &write_fds))
-				try_to_send(prev_cl, cl);
-			prev_cl = cl;
-		}
-
 		if (FD_ISSET(selfpipe[0], &read_fds)) {
 			char c;
 
@@ -533,6 +524,15 @@ int main(int argc, char **argv) {
 
 		if (FD_ISSET(listen_fd, &read_fds)) {
 			accept_connection(listen_fd, full);
+		}
+
+		prev_cl = NULL;
+		for (cl = clients; cl; cl = next_cl) {
+			next_cl = cl->next;
+
+			if (FD_ISSET(cl->fd, &write_fds))
+				try_to_send(prev_cl, cl);
+			prev_cl = cl;
 		}
 	}
 
