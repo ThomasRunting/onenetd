@@ -243,8 +243,7 @@ void accept_connection(int listen_fd, int full) {
 	int child_fd = -1;
 	int n;
 
-	child_fd = accept(listen_fd,
-		(struct sockaddr *)&child_addr, &len);
+	child_fd = accept(listen_fd, (struct sockaddr *)&child_addr, &len);
 
 	if (len != sizeof child_addr) {
 		warn("unable to get remote address");
@@ -259,8 +258,7 @@ void accept_connection(int listen_fd, int full) {
 	set_fd_cloexec(child_fd);
 
 	len = sizeof local_addr;
-	if (getsockname(child_fd,
-		(struct sockaddr *)&local_addr, &len) < 0
+	if (getsockname(child_fd, (struct sockaddr *)&local_addr, &len) < 0
 		|| len != sizeof local_addr) {
 		warn("unable to get local address");
 		goto no_conn;
@@ -271,8 +269,7 @@ void accept_connection(int listen_fd, int full) {
 
 		/* Avoid overfilling the fd_set. */
 		if (child_fd >= FD_SETSIZE && verbose) {
-			fprintf(stderr, "- dropped from %s "
-				"port %d\n",
+			fprintf(stderr, "- dropped from %s port %d\n",
 				inet_ntoa(child_addr.sin_addr),
 				ntohs(child_addr.sin_port));
 		}
@@ -298,8 +295,7 @@ void accept_connection(int listen_fd, int full) {
 		clients = cl;
 
 		if (verbose)
-			fprintf(stderr, "- refused from %s "
-				"port %d\n",
+			fprintf(stderr, "- refused from %s port %d\n",
 				inet_ntoa(child_addr.sin_addr),
 				ntohs(child_addr.sin_port));
 
@@ -352,8 +348,8 @@ void accept_connection(int listen_fd, int full) {
 
 	conn_count++;
 	if (verbose)
-		fprintf(stderr, "%ld connected from %s "
-			"port %d (%d/%d)\n", (long) pid,
+		fprintf(stderr, "%ld connected from %s port %d (%d/%d)\n",
+			(long) pid,
 			inet_ntoa(child_addr.sin_addr),
 			ntohs(child_addr.sin_port),
 			conn_count, max_conns);
