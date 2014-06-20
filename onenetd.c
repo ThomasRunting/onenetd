@@ -359,6 +359,20 @@ no_conn:
 		close(child_fd);
 }
 
+/* Check for child processes that have exited. */
+void reap_children(void) {
+	while (1) {
+		pid_t pid = waitpid(-1, NULL, WNOHANG);
+		if (pid <= 0)
+			break;
+
+		conn_count--;
+		if (verbose)
+			fprintf(stderr, "%ld closed (%d/%d)\n",
+				(long) pid, conn_count, max_conns);
+	}
+}
+
 int main(int argc, char **argv) {
 	struct sigaction sa;
 	sigset_t sig_chld;
@@ -516,15 +530,7 @@ int main(int argc, char **argv) {
 			/* We don't care if this fails. */
 			read(selfpipe[0], &c, 1);
 
-			while (1) {
-				pid_t pid = waitpid(-1, NULL, WNOHANG);
-				if (pid <= 0)
-					break;
-
-				conn_count--;
-				if (verbose)
-					fprintf(stderr, "%ld closed (%d/%d)\n", (long) pid, conn_count, max_conns);
-			}
+			reap_children();
 		}
 
 		if (FD_ISSET(listen_fd, &read_fds)) {
