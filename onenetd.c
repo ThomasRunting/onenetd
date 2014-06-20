@@ -479,6 +479,12 @@ int main(int argc, char **argv) {
 	set_fd_cloexec(selfpipe[0]);
 	set_fd_cloexec(selfpipe[1]);
 
+        /* Mask SIGCHLD, except when we're blocked in select(). This is because
+           many of the system calls we use are interruptable, and we'd
+           otherwise have to handle EINTR everywhere.  (It would be simpler to
+           just use SA_RESTART for SIGCHLD -- but POSIX says that it's
+           implementation-defined whether select() is interrupted in that case
+           or not.) */
 	sigemptyset(&sig_chld);
 	sigaddset(&sig_chld, SIGCHLD);
 	if (sigprocmask(SIG_BLOCK, &sig_chld, NULL) < 0)
