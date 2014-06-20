@@ -243,9 +243,6 @@ void accept_connection(int listen_fd, int full) {
 	int child_fd = -1;
 	int n;
 
-	if (full && !response)
-		goto no_conn;
-
 	child_fd = accept(listen_fd,
 		(struct sockaddr *)&child_addr, &len);
 
