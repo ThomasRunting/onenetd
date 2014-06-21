@@ -27,13 +27,16 @@ def die(*s):
 def child():
     """Child process for onenetd."""
 
-    assert os.getenv("PROTO") == "TCP"
-
     def put(s):
         sys.stdout.write(s + "\n")
         sys.stdout.flush()
 
-    put("hello")
+    put("hello %s %s %s %s %s"
+        % (os.getenv("PROTO"),
+           os.getenv("TCPREMOTEIP"),
+           os.getenv("TCPREMOTEPORT"),
+           os.getenv("TCPLOCALIP"),
+           os.getenv("TCPLOCALPORT")))
 
     while True:
         l = sys.stdin.readline()
@@ -89,14 +92,37 @@ class Connector(threading.Thread):
 
     def real_run(self):
         try:
-            sock = socket.create_connection(self.address).makefile()
+            sock = socket.create_connection(self.address)
         except IOError:
             raise ConnectionFailure("connection failed")
+        f = sock.makefile()
 
         try:
-            l = sock.readline()
-            if l.strip() != "hello":
+            l = f.readline()
+            fs = l.strip().split()
+            if len(fs) == 0:
+                raise Failure("connection closed with no response")
+            if fs[0] != "hello":
                 raise RefusedFailure("expected hello, got " + repr(l))
+
+            # Handily, Python's address mapping is the same as onenetd's...
+            name, port = sock.getsockname()[:2]
+            if name.find("::") != -1:
+                proto = "TCP6"
+            else:
+                proto = "TCP"
+            if fs[1] != proto:
+                raise Failure("wrong $PROTO")
+            if fs[2] != name:
+                raise Failure("wrong $TCPREMOTEIP")
+            if fs[3] != str(port):
+                raise Failure("wrong $TCPREMOTEPORT")
+
+            name, port = sock.getpeername()[:2]
+            if fs[4] != name:
+                raise Failure("wrong $TCPLOCALIP")
+            if fs[5] != str(port):
+                raise Failure("wrong $TCPLOCALPORT")
 
             if self.bar:
                 self.bar.sync()
@@ -113,7 +139,7 @@ class Tester:
         self.port = None
         self.addr = None
 
-    def begin(self, name, args=[]):
+    def begin(self, name, args=[], bind="0", connect="127.0.0.1"):
         self.end()
 
         # Start up onenetd.
@@ -122,7 +148,7 @@ class Tester:
             "-v",
             "-1",
             ] + args + [
-            "0", "0",
+            bind, "0",
             sys.argv[0], "--child",
             ]
         self.proc = subprocess.Popen(cmd,
@@ -131,7 +157,7 @@ class Tester:
 
         # What port did it bind to?
         port = int(self.proc.stdout.readline())
-        self.addr = ("127.0.0.1", port)
+        self.addr = (connect, port)
 
         print ">>> %-40s %s" % (name, str(self.addr))
 
@@ -185,11 +211,21 @@ class Tester:
                     if found_expected == 0:
                         raise Failure("excepted a %s exception" % repr(expect))
 
-        self.begin("single connection")
-        ts = start_n(1)
-        self.expect("connected")
-        join_all(ts)
-        self.expect("closed")
+        trials = [
+            ("0", "127.0.0.1", "127.0.0.1", []),
+            ("127.0.0.1", "127.0.0.1", "127.0.0.1", []),
+            ("0", "localhost", "127.0.0.1", []), # name lookup
+            ("::", "::1", "::1", ["-6"]),
+            ("::1", "::1", "::1", ["-6"]),
+            ("::", "127.0.0.1", "127.0.0.1", ["-6"]), # IPv4-mapped
+            ]
+        for bind, connect, expect, args in trials:
+            self.begin("bind %s, connect %s" % (bind, connect),
+                       args=args, bind=bind, connect=connect)
+            ts = start_n(1)
+            self.expect("connected from " + expect)
+            join_all(ts)
+            self.expect("closed")
 
         limit = 10
         limit_args = ["-c", str(limit)]

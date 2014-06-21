@@ -24,6 +24,11 @@ Add the -1 option.
 Automate the test suite. There used to be some scripts in the repository
 for testing it by hand; now "make check" will do the right thing.
 
+Add IPv6 support. This behaves like Felix von Leitner's IPv6 patch for
+tcpserver: specify -6, and onenetd will bind to an IPv6 socket. If
+you've specified an address that can accept IPv4 connections (e.g. ::),
+it'll work for both.
+
 - onenetd 1.11
 
 Change the license from the GPL to the Expat license.

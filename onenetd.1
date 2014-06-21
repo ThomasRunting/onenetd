@@ -29,7 +29,8 @@ services (such as nmbd) from onenetd.
 .SH OPTIONS
 .TP
 .B ADDRESS
-The hostname or IP address to bind() to. Specify 0 to bind to all addresses.
+The hostname or IP address to bind() to. Specify 0 (or :: for IPv6) to bind to
+all addresses.
 .TP
 .B PORT
 The service name or port number to bind() to. In order to bind to a privileged
@@ -46,6 +47,10 @@ argv0 tool from the freedt or daemontools packages.
 .B \-c N
 Limit the number of connections (and thus child processes) to N. The default is
 40.
+.TP
+.B \-6
+Bind to an IPv6 address. IPv6 sockets will also accept IPv4 connections, if
+bound to an appropriate address (e.g. ::).
 .TP
 .B \-g GID
 After binding the TCP socket, setgid(GID). GID must be numeric.
@@ -109,19 +114,20 @@ the child process's environment. These can be used for logging or access
 control.
 .TP
 .B PROTO
-The string "TCP".
+The string "TCP" for IPv4 connections, or "TCP6" for IPv6 connections.
 .TP
 .B TCPLOCALIP
-The local IPv4 address of the connected socket, in dotted quad format.
+The local address of the connected socket, as formatted by inet_ntop (dotted
+quad for IPv4, hex for IPv6).
 .TP
 .B TCPLOCALPORT
-The local IPv4 port of the connected socket, as a decimal number.
+The local port of the connected socket, as a decimal number.
 .TP
 .B TCPREMOTEIP
-The remote IPv4 address of the connected socket, in dotted quad format.
+The remote address of the connected socket, as formatted by inet_ntop.
 .TP
 .B TCPREMOTEPORT
-The remote IPv4 port of the connected socket, as a decimal number.
+The remote port of the connected socket, as a decimal number.
 .SH EXAMPLES
 .TP
 onenetd 0 echo cat
@@ -131,6 +137,10 @@ onenetd -v 192.168.1.2 daytime date
 Simulate the standard inetd daytime service on the interface 192.168.1.2,
 logging connections to stderr.
 .TP
+onenetd -1 ::1 0 myprog --my-arguments
+Bind to a free port on the IPv6 localhost address, print the port number
+chosen, and run "myprog --my-arguments" for connections.
+.TP
 onenetd -v -c 5 -r '421 Server full\\r\\n' 0 21 /usr/sbin/ftpd -a /home/ftp
 Run an FTP service with a limit of five concurrent connections, refusing any
 further connections with an appropriate FTP error message. ftpd will be invoked
@@ -138,9 +148,9 @@ as "/usr/sbin/ftpd -a /home/ftp".
 .TP
 envuidgid myuser onenetd -v -U 0 25098 myprog --my-arguments
 Set user and group to that of myuser, and run "myprog --my-arguments" for
-connections to port 25098 on any interface.
+connections to port 25098 on any IPv4 interface.
 .SH AUTHOR
-onenetd was written by Adam Sampson <ats@offog.org>
+onenetd was written by Adam Sampson <ats@offog.org>.
 .SH SEE ALSO
 .BR inetd (8),
 .BR argv0 (8),

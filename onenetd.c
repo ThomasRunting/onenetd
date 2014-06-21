@@ -18,8 +18,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <netdb.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -34,6 +34,7 @@
 
 int max_conns = 40;
 int conn_count = 0;
+int bind_family = AF_INET;
 int use_gid = 0;
 gid_t gid = 0;
 int use_uid = 0;
@@ -58,6 +59,52 @@ typedef struct client {
 	struct client *next;
 } client;
 client *clients = NULL;
+
+/* Structure big enough to contain either an IPv4 or IPv6 socket address. */
+typedef union {
+	struct sockaddr_in v4;
+	struct sockaddr_in6 v6;
+} either_addr_t;
+
+/* Get the UCSPI PROTO value for an address. */
+const char *get_proto(const either_addr_t *addr) {
+	if (addr->v4.sin_family == AF_INET6
+		&& !IN6_IS_ADDR_V4MAPPED(&addr->v6.sin6_addr))
+		return "TCP6";
+	else
+		return "TCP";
+}
+
+/* Get the UCSPI *IP value for an address.
+   Returns a pointer to a static buffer. */
+const char *get_addr(const either_addr_t *addr) {
+	static char buf[INET6_ADDRSTRLEN];
+	const void *src;
+	int family = addr->v4.sin_family;
+
+	if (family == AF_INET) {
+		src = &addr->v4.sin_addr;
+	} else if (IN6_IS_ADDR_V4MAPPED(&addr->v6.sin6_addr)) {
+		/* An IPv4-mapped IPv6 address; display as IPv4. */
+		family = AF_INET;
+		src = ((char *)(&addr->v6.sin6_addr)) + 12;
+	} else {
+		src = &addr->v6.sin6_addr;
+	}
+
+	const char *s = inet_ntop(family, src, buf, sizeof buf);
+	if (s == NULL)
+		return "-";
+	return s;
+}
+
+/* Get the UCSPI *PORT value for an address. */
+int get_port(const either_addr_t *addr) {
+	if (addr->v4.sin_family == AF_INET)
+		return ntohs(addr->v4.sin_port);
+	else
+		return ntohs(addr->v6.sin6_port);
+}
 
 /* Print a warning. */
 void warn(const char *msg) {
@@ -127,6 +174,7 @@ void usage(int code) {
 		"  -c N     limit to at most N children running (default 40).\n"
 		"           Further connections will be deferred unless -r\n"
 		"           is specified.\n"
+		"  -6       bind to an IPv6 address (default IPv4)\n"
 		"  -g gid   setgid(gid) after binding\n"
 		"  -u uid   setuid(uid) after binding\n"
 		"  -U       setuid($UID) and setgid($GID) after binding\n"
@@ -147,32 +195,21 @@ void usage(int code) {
 
 /* Create and bind the listening socket. */
 int make_listen_socket(const char *address, const char *port) {
-	struct sockaddr_in listen_addr;
-	int n, fd;
+	struct addrinfo hints = {};
+	struct addrinfo *ai;
+	int rc, n, fd;
 
-	listen_addr.sin_family = AF_INET;
+	hints.ai_family = bind_family;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_protocol = 0;
 
-	listen_addr.sin_addr.s_addr = inet_addr(address);
-	if (listen_addr.sin_addr.s_addr == -1) {
-		struct hostent *he = gethostbyname(address);
-		if ((!he) || (he->h_addrtype != AF_INET)
-			|| (he->h_addr == 0))
-			die("unable to resolve listen host");
-		listen_addr.sin_addr = *(struct in_addr *)he->h_addr;
+	rc = getaddrinfo(address, port, &hints, &ai);
+	if (rc != 0) {
+		die(gai_strerror(rc));
 	}
 
-	n = atoi(port);
-	if (n == 0 && strcmp(port, "0") != 0) {
-		struct servent *se = getservbyname(port, "tcp");
-		if (!se)
-			die("unable to resolve listen port");
-		n = se->s_port;
-	} else {
-		n = htons(n);
-	}
-	listen_addr.sin_port = n;
-
-	fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 	if (fd < 0)
 		die("unable to create socket");
 	if (change_flags(fd, O_NONBLOCK, 0) < 0)
@@ -181,20 +218,23 @@ int make_listen_socket(const char *address, const char *port) {
 	n = 1;
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof n) < 0)
 		die("unable to set SO_REUSEADDR");
-	if (bind(fd, (struct sockaddr *)&listen_addr,
-		sizeof listen_addr) < 0)
+	if (bind(fd, ai->ai_addr, ai->ai_addrlen) < 0)
 		die("unable to bind to listen address");
 	if (listen(fd, backlog) < 0)
 		die("unable to listen");
 
 	if (show_port) {
-		socklen_t size = sizeof listen_addr;
-		if (getsockname(fd, (struct sockaddr *)&listen_addr,
-			&size) < 0)
+		either_addr_t addr;
+		socklen_t size = sizeof addr;
+
+		if (getsockname(fd, (struct sockaddr *)&addr, &size) < 0)
 			die("unable to get bound address");
-		printf("%d\n", ntohs(listen_addr.sin_port));
+
+		printf("%d\n", get_port(&addr));
 		fflush(stdout);
 	}
+
+	freeaddrinfo(ai);
 
 	return fd;
 }
@@ -233,13 +273,13 @@ void try_to_send(client *prev_cl, client *cl) {
    the list of clients to reject. */
 void accept_connection(int listen_fd, int full) {
 	pid_t pid;
-	struct sockaddr_in local_addr, child_addr;
+	either_addr_t local_addr, child_addr;
 	socklen_t len = sizeof child_addr;
 	int child_fd;
 	int n;
 
 	child_fd = accept(listen_fd, (struct sockaddr *)&child_addr, &len);
-	if (len != sizeof child_addr) {
+	if (len > sizeof child_addr) {
 		warn("unable to get remote address");
 		goto no_conn;
 	}
@@ -253,7 +293,7 @@ void accept_connection(int listen_fd, int full) {
 
 	len = sizeof local_addr;
 	if (getsockname(child_fd, (struct sockaddr *)&local_addr, &len) < 0
-		|| len != sizeof local_addr) {
+		|| len > sizeof local_addr) {
 		warn("unable to get local address");
 		goto no_conn;
 	}
@@ -264,8 +304,8 @@ void accept_connection(int listen_fd, int full) {
 		/* Avoid overfilling the fd_set. */
 		if (child_fd >= FD_SETSIZE && verbose) {
 			fprintf(stderr, "- dropped from %s port %d\n",
-				inet_ntoa(child_addr.sin_addr),
-				ntohs(child_addr.sin_port));
+				get_addr(&child_addr),
+				get_port(&child_addr));
 		}
 		if (child_fd >= FD_SETSIZE)
 			goto no_conn;
@@ -290,8 +330,8 @@ void accept_connection(int listen_fd, int full) {
 
 		if (verbose)
 			fprintf(stderr, "- refused from %s port %d\n",
-				inet_ntoa(child_addr.sin_addr),
-				ntohs(child_addr.sin_port));
+				get_addr(&child_addr),
+				get_port(&child_addr));
 
 		/* Try to send the response now; if we send
 		   all of it it'll get removed from the list
@@ -321,18 +361,20 @@ void accept_connection(int listen_fd, int full) {
 		if (stderr_to_socket)
 			dup2(child_fd, 2);
 
-		putenv_dup("PROTO=TCP");
+		snprintf(buf, sizeof buf, "PROTO=%s",
+			get_proto(&local_addr));
+		putenv_dup(buf);
 		snprintf(buf, sizeof buf, "TCPLOCALIP=%s",
-			inet_ntoa(local_addr.sin_addr));
+			get_addr(&local_addr));
 		putenv_dup(buf);
 		snprintf(buf, sizeof buf, "TCPLOCALPORT=%d",
-			ntohs(local_addr.sin_port));
+			get_port(&local_addr));
 		putenv_dup(buf);
 		snprintf(buf, sizeof buf, "TCPREMOTEIP=%s",
-			inet_ntoa(child_addr.sin_addr));
+			get_addr(&child_addr));
 		putenv_dup(buf);
 		snprintf(buf, sizeof buf, "TCPREMOTEPORT=%d",
-			ntohs(child_addr.sin_port));
+			get_port(&child_addr));
 		putenv_dup(buf);
 
 		execvp(command[0], command);
@@ -343,8 +385,8 @@ void accept_connection(int listen_fd, int full) {
 	if (verbose)
 		fprintf(stderr, "%ld connected from %s port %d (%d/%d)\n",
 			(long) pid,
-			inet_ntoa(child_addr.sin_addr),
-			ntohs(child_addr.sin_port),
+			get_addr(&child_addr),
+			get_port(&child_addr),
 			conn_count, max_conns);
 
 no_conn:
@@ -374,12 +416,15 @@ int main(int argc, char **argv) {
 	int n;
 
 	while (1) {
-		int c = getopt(argc, argv, "+c:g:u:U1b:DQvehr:");
+		int c = getopt(argc, argv, "+c:6g:u:U1b:DQvehr:");
 		if (c == -1)
 			break;
 		switch (c) {
 		case 'c':
 			max_conns = atoi(optarg);
+			break;
+		case '6':
+			bind_family = AF_INET6;
 			break;
 		case 'g':
 			use_gid = 1;
