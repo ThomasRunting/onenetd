@@ -8,8 +8,8 @@ onenetd was inspired by D. J. Bernstein's tcpserver program from the
 ucspi-tcp suite <http://cr.yp.to/ucspi-tcp/tcpserver.html>, and is
 broadly compatible with it. Compared to tcpserver, onenetd is missing
 support for access control, IDENT lookups and DNS resolution, but adds
-the ability to refuse connections with a fixed response once the
-connection limit is reached.
+IPv6 support and the ability to refuse connections with a fixed response
+once the connection limit is reached.
 
 onenetd is free software available under the ISC license; see the
 copyright notice at the top of onenetd.c for more details.
