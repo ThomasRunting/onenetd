@@ -1,15 +1,15 @@
-onenetd
+# onenetd
 Adam Sampson <ats@offog.org>
 
-onenetd is a single-port inetd. Invoke it as "onenetd -h" for options,
+onenetd is a single-port inetd. Invoke it as `onenetd -h` for options,
 or see the included manual page.
 
 onenetd was inspired by D. J. Bernstein's tcpserver program from the
-ucspi-tcp suite <http://cr.yp.to/ucspi-tcp/tcpserver.html>, and is
+[ucspi-tcp suite](http://cr.yp.to/ucspi-tcp/tcpserver.html), and is
 broadly compatible with it. Compared to tcpserver, onenetd is missing
 support for access control, IDENT lookups and DNS resolution, but adds
 IPv6 support and the ability to refuse connections with a fixed response
 once the connection limit is reached.
 
 onenetd is free software available under the ISC license; see the
-copyright notice at the top of onenetd.c for more details.
+copyright notice at the top of `onenetd.c` for more details.
