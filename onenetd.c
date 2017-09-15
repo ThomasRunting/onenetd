@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include "config.h"
 
-int max_conns = 40;
+int max_conns = 5;
 int conn_count = 0;
 int bind_family = AF_INET;
 int use_gid = 0;
